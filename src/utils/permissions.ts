@@ -1,4 +1,6 @@
 import type { LoanCase, Role } from "@/types/loan";
+import { isCaseSlaBreached } from "./dates";
+import { dataProvider } from "@/data/dataProvider";
 
 export type Action =
   | "createEnquiry"
@@ -21,7 +23,10 @@ export type Action =
   | "recordVisit"
   | "recordPayment"
   | "resolve"
-  | "addNote";
+  | "addNote"
+  | "resolveQuery"
+  | "reopenFile"
+  | "viewSlaAttention";
 
 const OFFICER: Action[] = [
   "createEnquiry",
@@ -33,6 +38,7 @@ const OFFICER: Action[] = [
   "markReady",
   "processDisbursement",
   "query",
+  "resolveQuery",
   "recordVisit",
   "recordPayment",
   "escalate",
@@ -51,12 +57,18 @@ const BRANCH_MANAGER: Action[] = [
   "resolve",
 ];
 
-// Regional Manager has full oversight and inherits all Branch Manager powers
-const REGIONAL_MANAGER: Action[] = [...BRANCH_MANAGER];
+// Regional Manager has full oversight, inherits all Branch Manager powers,
+// and holds executive authority to view SLA Attention queues and re-open files
+const REGIONAL_MANAGER: Action[] = [...BRANCH_MANAGER, "reopenFile", "viewSlaAttention"];
 
-// Managing Director is the supreme authority: can perform all actions across the book,
-// but has no higher level to escalate to (so 'escalate' is excluded).
-const MD: Action[] = BRANCH_MANAGER.filter((action) => action !== "escalate");
+// Managing Director is the apex sanctioning authority: approves/rejects across the book,
+// holds executive authority for SLA Attention and file re-opening,
+// but does not escalate (apex) and does not raise operational queries.
+const MD: Action[] = [
+  ...BRANCH_MANAGER.filter((action) => action !== "escalate" && action !== "query"),
+  "reopenFile",
+  "viewSlaAttention",
+];
 
 const MATRIX: Record<Role, Action[]> = {
   Officer: OFFICER,
@@ -68,7 +80,7 @@ const MATRIX: Record<Role, Action[]> = {
   MD,
 };
 
-export function can(role: Role, action: Action, c?: LoanCase): boolean {
+export function can(role: Role, action: Action, c?: LoanCase, demoDate?: string): boolean {
   if (!MATRIX[role].includes(action)) return false;
   if (!c) return true;
   switch (action) {
@@ -80,6 +92,19 @@ export function can(role: Role, action: Action, c?: LoanCase): boolean {
       return c.stage === "enquiry";
     case "approve":
       if (c.stage !== "credit_review") return false;
+      // If application has breached 15-day SLA, ONLY Regional Manager & MD hold sanction authority
+      if (
+        c.workflowStatus === "SLA Attention" ||
+        isCaseSlaBreached(c, demoDate ?? dataProvider.getInitialDemoDate())
+      ) {
+        return (
+          role === "Regional Manager" ||
+          role === "Area Manager" ||
+          role === "MD" ||
+          role === "Business Head" ||
+          role === "General Manager"
+        );
+      }
       // Policy deviations (e.g. low CIBIL score) exceed Branch Manager sanction limits and require Regional Manager or MD sign-off
       if (c.cibilException && role === "Branch Manager") return false;
       return true;
@@ -87,10 +112,21 @@ export function can(role: Role, action: Action, c?: LoanCase): boolean {
     case "review":
       return c.stage === "credit_review";
     case "query":
+      if (role === "MD") return false;
       return c.stage === "credit_review" || c.stage === "disbursement";
+    case "resolveQuery":
+      return c.queryRaised || (c.queries && c.queries.some((q) => q.status === "OPEN"));
     case "verify":
     case "markReady":
-      return c.stage === "disbursement" && c.workflowStatus !== "Disbursed";
+      return (
+        c.stage === "disbursement" &&
+        c.workflowStatus !== "Disbursed" &&
+        c.workflowStatus !== "SLA Attention"
+      );
+    case "reopenFile":
+      return c.workflowStatus === "SLA Attention";
+    case "viewSlaAttention":
+      return true;
     case "processDisbursement":
       return c.stage === "disbursement" && c.workflowStatus === "Ready for Disbursement";
     case "recordPayment":

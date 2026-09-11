@@ -1,11 +1,18 @@
-import { AlertTriangle, ClipboardCheck, Clock, MessageSquare, ShieldAlert } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ClipboardCheck,
+  Clock,
+  MessageSquare,
+  ShieldAlert,
+} from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useVisibleCases } from "@/modules/useVisibleCases";
 import { computeMetrics } from "@/utils/metrics";
-import { getApplicationSla } from "@/utils/dates";
+import { getApplicationSla, isCaseSlaBreached } from "@/utils/dates";
 import { COLUMN_LABELS, CREDIT_COLUMNS } from "@/utils/transitions";
 import { getScope } from "@/utils/scope";
-import { authorityFor } from "@/utils/permissions";
+import { authorityFor, can } from "@/utils/permissions";
 import { inr, pct } from "@/utils/format";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { KPI, KPIGroup } from "@/components/kpi/KPI";
@@ -27,21 +34,30 @@ export function CreditModule() {
   } = useAppStore();
   const visible = useVisibleCases();
   const scope = getScope(currentRole);
+  const canViewSla = can(currentRole, "viewSlaAttention");
   const metrics = computeMetrics(visible, currentDemoDate);
-  const credit = visible.filter((c) => c.stage === "credit_review");
 
-  const atRisk = credit.filter((c) => {
-    const sla = getApplicationSla(c, currentDemoDate);
-    return sla && sla.urgency !== "Normal";
-  });
+  // If role is Branch Manager or Officer, hide all breached SLA cases from Credit view
+  const credit = visible
+    .filter((c) => c.stage === "credit_review")
+    .filter((c) => canViewSla || !isCaseSlaBreached(c, currentDemoDate));
+
+  const slaCases = credit.filter((c) => isCaseSlaBreached(c, currentDemoDate));
+  const readyCount = credit.filter((c) => c.workflowStatus === "Ready").length;
   const exceptions = credit.filter((c) => c.cibilException);
   const queries = credit.filter((c) => c.queryRaised);
+
+  const availableColumns = CREDIT_COLUMNS.filter((col) => col !== "SLA Attention" || canViewSla);
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Credit"
-        subtitle="Assessment queue, query loop, deviation authority and the 15-day application SLA"
+        subtitle={
+          canViewSla
+            ? "Assessment queue, query loop, deviation authority and 15-day application SLA oversight"
+            : "Assessment queue, query loop, and deviation authority"
+        }
         crumbs={scope.crumbs}
       />
 
@@ -65,13 +81,23 @@ export function CreditModule() {
           icon={<MessageSquare className="size-3.5" />}
           support="Waiting on sales"
         />
-        <KPI
-          label="SLA breach risk"
-          value={atRisk.length}
-          status={atRisk.length ? "danger" : "success"}
-          icon={<Clock className="size-3.5" />}
-          support="Day 11+ of 15"
-        />
+        {canViewSla ? (
+          <KPI
+            label="SLA Attention"
+            value={slaCases.length}
+            status={slaCases.length > 0 ? "danger" : "neutral"}
+            icon={<AlertTriangle className="size-3.5" />}
+            support="Breached >15 days"
+          />
+        ) : (
+          <KPI
+            label="Ready for approval"
+            value={readyCount}
+            status="success"
+            icon={<CheckCircle2 className="size-3.5" />}
+            support="Assessment complete"
+          />
+        )}
         <KPI
           label="CIBIL exceptions"
           value={exceptions.length}
@@ -104,31 +130,54 @@ export function CreditModule() {
       </FilterBar>
 
       <KanbanBoard>
-        {CREDIT_COLUMNS.map((col) => {
-          const list = credit.filter((c) => c.workflowStatus === col);
+        {availableColumns.map((col) => {
+          const isSlaCol = col === "SLA Attention";
+          const list = credit.filter((c) => {
+            const isBreached = isCaseSlaBreached(c, currentDemoDate);
+            if (isSlaCol) return isBreached;
+            if (isBreached) return false;
+            return c.workflowStatus === col;
+          });
+
           return (
             <KanbanColumn
               key={col}
               title={COLUMN_LABELS[col] ?? col}
               count={list.length}
-              accent={col === "Ready" ? "success" : col === "In Review" ? "review" : "info"}
-              emptyLabel="Queue is clear"
+              accent={
+                isSlaCol
+                  ? "danger"
+                  : col === "Ready"
+                    ? "success"
+                    : col === "In Review"
+                      ? "review"
+                      : "info"
+              }
+              emptyLabel={isSlaCol ? "No breached applications" : "Queue is clear"}
             >
               {list.map((c) => {
                 const sla = getApplicationSla(c, currentDemoDate);
+                const isBreached = isCaseSlaBreached(c, currentDemoDate);
+
                 return (
                   <KanbanCard
                     key={c.id}
                     onClick={() => selectCase(c.id)}
                     accent={
-                      sla?.urgency === "Critical" ? "danger" : c.cibilException ? "review" : "info"
+                      isBreached || sla?.urgency === "Critical"
+                        ? "danger"
+                        : c.cibilException
+                          ? "review"
+                          : "info"
                     }
                   >
                     <CardRow>
                       <span className="truncate text-sm font-semibold text-foreground">
                         {c.clientName}
                       </span>
-                      {sla && <SlaBadge day={sla.day} total={sla.total} urgency={sla.urgency} />}
+                      {canViewSla && sla && (
+                        <SlaBadge day={sla.day} total={sla.total} urgency={sla.urgency} />
+                      )}
                     </CardRow>
                     <p className="num mt-1 text-xs text-muted-foreground">
                       {inr(c.loanAmount, true)} · CIBIL {c.credit.cibil} ·{" "}
@@ -138,6 +187,11 @@ export function CreditModule() {
                       <span className="flex flex-wrap items-center gap-1">
                         {c.queryRaised && <QueryBadge />}
                         {c.cibilException && <ExceptionBadge />}
+                        {isBreached && canViewSla && (
+                          <span className="rounded-md bg-destructive/15 px-1.5 py-0.5 text-[10px] font-black uppercase text-destructive">
+                            Overdue &gt;15d
+                          </span>
+                        )}
                       </span>
                       <PriorityBadge priority={c.priority} />
                     </CardRow>
@@ -149,28 +203,30 @@ export function CreditModule() {
         })}
       </KanbanBoard>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <GlassPanel accent="danger">
-          <SectionHeading
-            title="SLA attention"
-            count={atRisk.length}
-            icon={<AlertTriangle className="size-4 text-destructive" />}
-          />
-          <DataList
-            items={atRisk.map((c) => {
-              const sla = getApplicationSla(c, currentDemoDate)!;
-              return {
-                id: c.id,
-                primary: c.clientName,
-                secondary: `Day ${sla.day} of ${sla.total} · ${c.workflowStatus}`,
-                meta: <SlaBadge day={sla.day} total={sla.total} urgency={sla.urgency} />,
-                accent: sla.urgency === "Critical" ? ("danger" as const) : ("warning" as const),
-              };
-            })}
-            onSelect={selectCase}
-            empty={<EmptyState compact title="Every application is inside SLA" />}
-          />
-        </GlassPanel>
+      <div className={canViewSla ? "grid gap-4 lg:grid-cols-2" : "grid gap-4 lg:grid-cols-1"}>
+        {canViewSla && (
+          <GlassPanel accent="danger">
+            <SectionHeading
+              title="SLA attention"
+              count={slaCases.length}
+              icon={<AlertTriangle className="size-4 text-destructive" />}
+            />
+            <DataList
+              items={slaCases.map((c) => {
+                const sla = getApplicationSla(c, currentDemoDate)!;
+                return {
+                  id: c.id,
+                  primary: c.clientName,
+                  secondary: `Day ${sla.day} of ${sla.total} · Breached Application SLA`,
+                  meta: <SlaBadge day={sla.day} total={sla.total} urgency={sla.urgency} />,
+                  accent: "danger" as const,
+                };
+              })}
+              onSelect={selectCase}
+              empty={<EmptyState compact title="Every application is inside SLA" />}
+            />
+          </GlassPanel>
+        )}
         <GlassPanel accent="review">
           <SectionHeading title="Exceptions & deviation authority" count={exceptions.length} />
           <DataList

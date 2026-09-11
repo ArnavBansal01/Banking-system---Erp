@@ -3,6 +3,7 @@ import { createJSONStorage, persist } from "zustand/middleware";
 import { dataProvider } from "@/data/dataProvider";
 import type {
   AppNotification,
+  CaseQuery,
   LoanCase,
   ModuleView,
   Role,
@@ -72,7 +73,15 @@ interface AppState {
   resolveCase: (id: string, note: string, actor: string) => void;
   assignCase: (id: string, officer: string, actor: string) => void;
   addNote: (id: string, text: string, actor: string) => void;
-  raiseQuery: (id: string, question: string, actor: string) => void;
+  raiseQuery: (id: string, question: string, actor: string, actorRole?: Role | undefined) => void;
+  resolveQuery: (
+    id: string,
+    queryId: string,
+    resolution: string,
+    actor: string,
+    actorRole?: Role | undefined,
+  ) => void;
+  reopenFile: (id: string, remarks: string, actor: string, actorRole?: Role | undefined) => void;
   toggleChecklist: (id: string, key: string, actor: string) => void;
 }
 
@@ -237,6 +246,9 @@ export const useAppStore = create<AppState>()(
             nextFollowUp: null,
             lastFollowUp: null,
             applicationDate: null,
+            approvalDate: null,
+            reopenedAt: null,
+            reopenedBy: null,
             disbursedDate: null,
             disbursedAmount: 0,
             emiHistory: [],
@@ -271,6 +283,10 @@ export const useAppStore = create<AppState>()(
                 stage === "credit_review" && !c.applicationDate
                   ? get().currentDemoDate
                   : c.applicationDate,
+              approvalDate:
+                event === TRANSITIONS.approve.event || (stage === "disbursement" && !c.approvalDate)
+                  ? get().currentDemoDate
+                  : (c.approvalDate ?? null),
               disbursedDate: stage === "collections" ? get().currentDemoDate : c.disbursedDate,
               disbursedAmount: stage === "collections" ? c.loanAmount : c.disbursedAmount,
               collectionQueue: stage === "collections" ? "followup" : c.collectionQueue,
@@ -286,7 +302,7 @@ export const useAppStore = create<AppState>()(
               title: "Loan Approved",
               message: `Loan for ${c?.clientName ?? id} approved by ${get().currentRole}. Handed over to Operations.`,
               type: "approval",
-              targetRoles: ["Regional Manager", "MD", "Officer"],
+              targetRoles: ["Branch Manager", "Regional Manager", "MD", "Officer"],
               targetOfficer: c?.assignedOfficer,
             });
           } else if (event === TRANSITIONS.disburse.event) {
@@ -438,20 +454,182 @@ export const useAppStore = create<AppState>()(
             { action: "Note added", actor, note: text },
           ),
 
-        raiseQuery: (id, question, actor) => {
-          const c = get().cases.find((x) => x.id === id);
-          patch(id, (c) => ({ ...c, queryRaised: true, workflowStatus: "In Review" }), {
-            action: "Query raised",
+        raiseQuery: (id, question, actor, actorRole) => {
+          const role = actorRole ?? get().currentRole;
+          let targetRoles: Role[];
+          if (role === "Officer") {
+            targetRoles = ["Branch Manager"];
+          } else if (role === "Branch Manager") {
+            targetRoles = ["Regional Manager"];
+          } else if (role === "Regional Manager") {
+            targetRoles = ["Branch Manager"];
+          } else {
+            targetRoles = ["Branch Manager"];
+          }
+
+          const queryId = uid("qry");
+          const newQuery: CaseQuery = {
+            id: queryId,
+            question,
+            raisedBy: actor,
+            raisedByRole: role,
+            raisedAt: stamp(get().currentDemoDate),
+            targetRoles,
+            status: "OPEN",
+          };
+
+          const noteObj = {
+            id: uid("n"),
+            timestamp: stamp(get().currentDemoDate),
             actor,
-            note: question,
-          });
+            text: `Query Raised: "${question}"`,
+          };
+
+          patch(
+            id,
+            (c) => ({
+              ...c,
+              queryRaised: true,
+              workflowStatus: "In Review",
+              queries: [newQuery, ...(c.queries ?? [])],
+              notes: [noteObj, ...c.notes],
+            }),
+            {
+              action: "Query raised",
+              actor,
+              note: question,
+            },
+          );
+
+          const c = get().cases.find((x) => x.id === id);
           get().addNotification({
             caseId: id,
             caseName: c?.clientName,
-            title: "Query Raised",
-            message: `${actor} raised query on ${c?.clientName ?? id}: "${question}"`,
+            title:
+              role === "Officer"
+                ? `Officer Query: ${actor}`
+                : role === "Branch Manager"
+                  ? `Branch Query: ${actor}`
+                  : "Query Raised",
+            message: `${actor} (${role}) submitted query to ${targetRoles.join(", ")} on ${c?.clientName ?? id}: "${question}"`,
             type: "query",
-            targetRoles: ["Officer", "Branch Manager"],
+            targetRoles,
+            targetOfficer: c?.assignedOfficer,
+          });
+        },
+
+        resolveQuery: (id, queryId, resolution, actor, actorRole) => {
+          const role = actorRole ?? get().currentRole;
+          const caseObj = get().cases.find((x) => x.id === id);
+          const targetQ = caseObj?.queries?.find((q) => q.id === queryId);
+          if (targetQ) {
+            const isAuthor =
+              targetQ.raisedBy === actor ||
+              targetQ.raisedByRole === role ||
+              (role === "Officer" && targetQ.raisedBy === caseObj?.assignedOfficer);
+            if (isAuthor) {
+              console.warn("Self-resolution prevented: author cannot resolve their own query");
+              return;
+            }
+          }
+
+          const noteObj = {
+            id: uid("n"),
+            timestamp: stamp(get().currentDemoDate),
+            actor,
+            text: `Query Resolved: "${resolution}"`,
+          };
+
+          patch(
+            id,
+            (c) => {
+              const updatedQueries = (c.queries ?? []).map((q) =>
+                q.id === queryId
+                  ? {
+                      ...q,
+                      status: "RESOLVED" as const,
+                      resolution,
+                      resolvedBy: actor,
+                      resolvedByRole: role,
+                      resolvedAt: stamp(get().currentDemoDate),
+                    }
+                  : q,
+              );
+              const hasOpenQueries = updatedQueries.some((q) => q.status === "OPEN");
+              return {
+                ...c,
+                queryRaised: hasOpenQueries,
+                workflowStatus: hasOpenQueries ? c.workflowStatus : "In Review",
+                queries: updatedQueries,
+                notes: [noteObj, ...c.notes],
+              };
+            },
+            {
+              action: "Query resolved",
+              actor,
+              note: resolution,
+            },
+          );
+
+          const c = get().cases.find((x) => x.id === id);
+          const notifyRoles: Role[] =
+            role === "Branch Manager"
+              ? ["Officer", "Regional Manager"]
+              : role === "Regional Manager"
+                ? ["Branch Manager"]
+                : ["Branch Manager", "Regional Manager"];
+
+          get().addNotification({
+            caseId: id,
+            caseName: c?.clientName,
+            title: "Query Resolved",
+            message: `${actor} (${role}) resolved query on ${c?.clientName ?? id}: "${resolution}"`,
+            type: "query",
+            targetRoles: notifyRoles,
+            targetOfficer: c?.assignedOfficer,
+          });
+        },
+
+        reopenFile: (id, remarks, actor, actorRole) => {
+          const role = actorRole ?? get().currentRole;
+          if (role !== "Regional Manager" && role !== "MD" && role !== "Area Manager") {
+            console.warn("Only Regional Manager and MD can re-open files in SLA Attention");
+            return;
+          }
+
+          const noteObj = {
+            id: uid("n"),
+            timestamp: stamp(get().currentDemoDate),
+            actor,
+            text: `File Re-opened by ${role}: "${remarks}"`,
+          };
+
+          patch(
+            id,
+            (c) => ({
+              ...c,
+              stage: "disbursement",
+              workflowStatus: "Verification",
+              approvalDate: get().currentDemoDate, // Reset SLA clock with extension
+              reopenedAt: stamp(get().currentDemoDate),
+              reopenedBy: actor,
+              notes: [noteObj, ...c.notes],
+            }),
+            {
+              action: "File re-opened by executive authority",
+              actor,
+              note: remarks,
+            },
+          );
+
+          const c = get().cases.find((x) => x.id === id);
+          get().addNotification({
+            caseId: id,
+            caseName: c?.clientName,
+            title: "SLA File Re-Opened",
+            message: `${actor} (${role}) re-opened file for ${c?.clientName ?? id}: "${remarks}". Returned to Verification.`,
+            type: "general",
+            targetRoles: ["Branch Manager", "Officer"],
             targetOfficer: c?.assignedOfficer,
           });
         },
@@ -471,7 +649,7 @@ export const useAppStore = create<AppState>()(
       };
     },
     {
-      name: "nbfc-erp-storage-v1",
+      name: "nbfc-erp-storage-v4",
       storage: createJSONStorage(() =>
         typeof window !== "undefined" ? window.localStorage : dummyStorage,
       ),

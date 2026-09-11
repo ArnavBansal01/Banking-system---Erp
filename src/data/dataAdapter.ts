@@ -113,10 +113,31 @@ export function adaptCase(raw: RawLoanCase, index: number): LoanCase {
   const financials = deriveFinancials(raw, credit);
   const h = hash(raw.id);
   const inPipeline = stage === "credit_review" || stage === "disbursement";
-  const applicationDate = inPipeline ? isoShift(APPLICATION_ANCHOR, -(2 + (h % 12))) : null;
+  const isCase004 = raw.id === "CASE-004";
+  const isCase007 = raw.id === "CASE-007";
+  const applicationDate = isCase004
+    ? isoShift(APPLICATION_ANCHOR, -16) // Converted 16 days ago -> Day 17 (>15d SLA breach)
+    : raw.id === "CASE-005"
+      ? isoShift(APPLICATION_ANCHOR, -7)
+      : raw.id === "CASE-006"
+        ? isoShift(APPLICATION_ANCHOR, -3)
+        : inPipeline
+          ? isoShift(APPLICATION_ANCHOR, -(2 + (h % 12)))
+          : null;
   const disbursed = raw.stage === "collections" || raw.subStatus === "Disbursements";
+
+  const approvalDate = isCase007
+    ? isoShift(APPLICATION_ANCHOR, -18)
+    : raw.stage === "disbursement"
+      ? isoShift(APPLICATION_ANCHOR, -5)
+      : disbursed
+        ? isoShift(APPLICATION_ANCHOR, -20)
+        : null;
+
   const workflowStatus =
-    statusMap[raw.subStatus] ?? (stage === "credit_review" ? "New" : "New Enquiry");
+    isCase004 || isCase007
+      ? "SLA Attention"
+      : (statusMap[raw.subStatus] ?? (stage === "credit_review" ? "New" : "New Enquiry"));
 
   const history: HistoryEvent[] = [
     {
@@ -132,6 +153,27 @@ export function adaptCase(raw: RawLoanCase, index: number): LoanCase {
       timestamp: `${applicationDate}T10:18`,
       actor: raw.assignedOfficer,
       action: "Application submitted to credit",
+      note: isCase004 ? "Enquiry converted to application, Day 1 begins" : undefined,
+    });
+  }
+  if (isCase004) {
+    history.push({
+      id: `${raw.id}-h2`,
+      timestamp: `${isoShift(APPLICATION_ANCHOR, -1)}T09:15`,
+      actor: "Credit Risk SLA Monitor",
+      action: "Application SLA breached (>15 days)",
+      note: "Pending credit assessment exceeded 15-day application window. Escalated to Regional Manager & MD for sanction review.",
+    });
+  }
+  if (approvalDate && !disbursed) {
+    history.push({
+      id: `${raw.id}-h2`,
+      timestamp: `${approvalDate}T14:20`,
+      actor: "Branch Credit Manager",
+      action: "Approved by credit authority",
+      note: isCase007
+        ? "Sanctioned 18 days ago; pending document verification breached 15-day SLA"
+        : "Sanctioned, forwarded to Operations for verification",
     });
   }
   if (disbursed) {
@@ -178,6 +220,9 @@ export function adaptCase(raw: RawLoanCase, index: number): LoanCase {
     lastFollowUp: raw.followUpCount > 0 ? isoShift(APPLICATION_ANCHOR, -(1 + (h % 6))) : null,
 
     applicationDate,
+    approvalDate,
+    reopenedAt: null,
+    reopenedBy: null,
     disbursedDate: disbursed ? isoShift(APPLICATION_ANCHOR, -18) : null,
     disbursedAmount: disbursed ? raw.loanAmount : 0,
 
@@ -239,6 +284,39 @@ export function adaptCase(raw: RawLoanCase, index: number): LoanCase {
           ]
         : [],
     notes: [],
+    queries:
+      raw.subStatus === "Query"
+        ? [
+            {
+              id: `${raw.id}-q1`,
+              question:
+                "Borrower declared monthly turnover of ₹15L, but Q1 bank credits average ₹8.5L. Please clarify difference with audited ledger or revised statement.",
+              raisedBy: "Arnav",
+              raisedByRole: "Officer",
+              raisedAt: `${isoShift(APPLICATION_ANCHOR, -2)}T11:30`,
+              targetRoles: ["Branch Manager"],
+              status: "OPEN",
+            },
+          ]
+        : raw.id === "CASE-004"
+          ? [
+              {
+                id: `${raw.id}-q0`,
+                question:
+                  "Warehouse rental agreement page 3 signature is blurred. Please submit clean scanned copy.",
+                raisedBy: "Operations Desk",
+                raisedByRole: "Branch Manager",
+                raisedAt: `${isoShift(APPLICATION_ANCHOR, -8)}T10:15`,
+                targetRoles: ["Officer"],
+                status: "RESOLVED",
+                resolution:
+                  "Fresh high-resolution scanned agreement uploaded and verified against land registry stamp.",
+                resolvedBy: "Arnav",
+                resolvedByRole: "Officer",
+                resolvedAt: `${isoShift(APPLICATION_ANCHOR, -7)}T15:45`,
+              },
+            ]
+          : [],
     history,
   };
 }

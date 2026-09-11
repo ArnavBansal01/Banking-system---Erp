@@ -6,6 +6,7 @@ import { longDate } from "@/utils/format";
 import { ThemeToggle } from "./ThemeToggle";
 import { UserRoleMenu } from "./UserRoleMenu";
 import { NotificationMenu } from "./NotificationMenu";
+import { QueryCenterMenu } from "./QueryCenterMenu";
 
 const NAV: { view: ModuleView; label: string }[] = [
   { view: "EMMS", label: "Sales / EMMS" },
@@ -63,6 +64,9 @@ export function TopNav() {
           </label>
 
           <ThemeToggle />
+
+          {/* Queries Center Panel */}
+          <QueryCenterMenu />
 
           {/* Notification Panel Dropdown */}
           <NotificationMenu />

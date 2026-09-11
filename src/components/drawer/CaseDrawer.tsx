@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Circle,
   CreditCard,
+  HelpCircle,
   MapPin,
   MessageSquare,
   Phone,
@@ -17,8 +18,9 @@ import {
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
+import { getScope } from "@/utils/scope";
 import { can, type Action } from "@/utils/permissions";
-import { getApplicationSla, getCollectionState } from "@/utils/dates";
+import { getApplicationSla, getCollectionState, isCaseSlaBreached } from "@/utils/dates";
 import { TRANSITIONS, nextEmmsStatus } from "@/utils/transitions";
 import { inr, longDate, pct, shortDate } from "@/utils/format";
 import type { LoanCase } from "@/types/loan";
@@ -55,6 +57,7 @@ type ModalKind =
   | "resolve"
   | "assign"
   | "convert"
+  | "reopenFile"
   | null;
 
 const OFFICERS = ["Arnav", "Jatin", "Tarun", "Shoaib"];
@@ -62,13 +65,29 @@ const OFFICERS = ["Arnav", "Jatin", "Tarun", "Shoaib"];
 function tabsFor(c: LoanCase): string[] {
   switch (c.stage) {
     case "enquiry":
-      return ["Overview", "Loan Details", "Documents", "History"];
+      return ["Overview", "Loan Details", "Queries", "Documents", "History"];
     case "credit_review":
-      return ["Overview", "Loan Details", "Documents", "Credit", "Financials", "History"];
+      return [
+        "Overview",
+        "Loan Details",
+        "Queries",
+        "Documents",
+        "Credit",
+        "Financials",
+        "History",
+      ];
     case "disbursement":
-      return ["Overview", "Loan Details", "Documents", "Verification", "Disbursement", "History"];
+      return [
+        "Overview",
+        "Loan Details",
+        "Queries",
+        "Documents",
+        "Verification",
+        "Disbursement",
+        "History",
+      ];
     default:
-      return ["Overview", "Loan Details", "Payments", "Credit", "History"];
+      return ["Overview", "Loan Details", "Queries", "Payments", "Credit", "History"];
   }
 }
 
@@ -91,10 +110,14 @@ export function CaseDrawer() {
     assignCase,
     addNote,
     raiseQuery,
+    resolveQuery,
+    reopenFile,
     toggleChecklist,
   } = useAppStore();
 
   const c = cases.find((x) => x.id === selectedCaseId) ?? null;
+  const scope = getScope(currentRole);
+  const activeActor = scope?.officer ?? currentRole;
   const [modal, setModal] = useState<ModalKind>(null);
   const [text, setText] = useState("");
   const [date, setDate] = useState(currentDemoDate);
@@ -117,7 +140,7 @@ export function CaseDrawer() {
     setText("");
   }, []);
 
-  const allow = (a: Action) => (c ? can(currentRole, a, c) : false);
+  const allow = (a: Action) => (c ? can(currentRole, a, c, currentDemoDate) : false);
 
   const runAction = () => {
     if (!c) return;
@@ -153,8 +176,8 @@ export function CaseDrawer() {
         toast.error("Application rejected");
         break;
       case "query":
-        raiseQuery(c.id, text, currentRole);
-        toast.message("Query raised", { description: "Sales notified for clarification" });
+        raiseQuery(c.id, text, activeActor, currentRole);
+        toast.message("Query raised", { description: "Routed to responsible authorities" });
         break;
       case "markReady":
         moveCase(
@@ -209,6 +232,12 @@ export function CaseDrawer() {
         addNote(c.id, text, currentRole);
         toast.success("Note added");
         break;
+      case "reopenFile":
+        reopenFile(c.id, text || "Executive SLA extension granted", activeActor, currentRole);
+        toast.success("File re-opened", {
+          description: "File returned to active branch verification checklist",
+        });
+        break;
       default:
         break;
     }
@@ -217,6 +246,7 @@ export function CaseDrawer() {
 
   const collection = c && c.stage === "collections" ? getCollectionState(c, currentDemoDate) : null;
   const sla = c ? getApplicationSla(c, currentDemoDate) : null;
+  const canViewSla = can(currentRole, "viewSlaAttention");
 
   return (
     <>
@@ -272,7 +302,9 @@ export function CaseDrawer() {
                 {c.queryRaised && <QueryBadge />}
                 {c.cibilException && <ExceptionBadge />}
                 {collection?.hasBounced && <BouncedBadge />}
-                {sla && <SlaBadge day={sla.day} total={sla.total} urgency={sla.urgency} />}
+                {canViewSla && sla && (
+                  <SlaBadge day={sla.day} total={sla.total} urgency={sla.urgency} />
+                )}
               </div>
             </header>
 
@@ -280,25 +312,73 @@ export function CaseDrawer() {
               aria-label="Case sections"
               className="flex gap-1 overflow-x-auto border-b border-border px-3 py-2"
             >
-              {tabs.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setDrawerTab(t)}
-                  aria-current={activeDrawerTab === t ? "true" : undefined}
-                  className={cn(
-                    "shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors duration-200",
-                    activeDrawerTab === t
-                      ? "bg-primary/12 text-primary"
-                      : "text-muted-foreground hover:bg-accent hover:text-foreground",
-                  )}
-                >
-                  {t}
-                </button>
-              ))}
+              {tabs.map((t) => {
+                const openCount =
+                  t === "Queries" ? (c.queries?.filter((q) => q.status === "OPEN").length ?? 0) : 0;
+                return (
+                  <button
+                    key={t}
+                    type="button"
+                    onClick={() => setDrawerTab(t)}
+                    aria-current={activeDrawerTab === t ? "true" : undefined}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 shrink-0 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors duration-200 cursor-pointer",
+                      activeDrawerTab === t
+                        ? "bg-primary/12 text-primary"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground",
+                    )}
+                  >
+                    <span>{t}</span>
+                    {openCount > 0 && (
+                      <span className="grid size-4 place-items-center rounded-full bg-warning/20 text-[9px] font-black text-warning">
+                        {openCount}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </nav>
 
-            <div className="flex-1 overflow-y-auto px-5 py-4">
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              {isCaseSlaBreached(c, currentDemoDate) && (
+                <div className="rounded-xl border border-destructive/40 bg-destructive/10 p-3.5 space-y-1.5 animate-in fade-in duration-200">
+                  <div className="flex items-center gap-2 text-destructive font-extrabold text-xs">
+                    <AlertTriangle className="size-4 shrink-0" />
+                    <span>
+                      {c.stage === "credit_review"
+                        ? "Application SLA Breached (>15 Days)"
+                        : "Post-Approval SLA Breached (>15 Days)"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-foreground leading-relaxed">
+                    {c.stage === "credit_review"
+                      ? `This loan application was submitted on ${c.applicationDate ?? "over 15 days ago"} (${sla ? `Day ${sla.day}` : ">15 days"}). Because 15 days have elapsed without credit approval, sanction authority has escalated exclusively to Regional Manager and MD.`
+                      : `This loan was approved on ${c.approvalDate ?? "over 15 days ago"}, but document verification was not completed within the 15-day window. The file is locked under Regional Manager & MD oversight.`}
+                  </p>
+                  {c.stage === "credit_review" ? (
+                    allow("approve") ? (
+                      <p className="text-[11px] font-semibold text-primary">
+                        ✓ As {currentRole}, you hold executive authority to approve or sanction this
+                        application.
+                      </p>
+                    ) : (
+                      <p className="text-[11px] font-medium text-muted-foreground italic">
+                        Awaiting executive review and approval by Regional Manager or MD.
+                      </p>
+                    )
+                  ) : allow("reopenFile") ? (
+                    <p className="text-[11px] font-semibold text-primary">
+                      ✓ As {currentRole}, you hold executive authority to re-open this file from the
+                      footer below.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] font-medium text-muted-foreground italic">
+                      Awaiting review and re-opening by Regional Manager or MD.
+                    </p>
+                  )}
+                </div>
+              )}
+
               <DrawerBody
                 c={c}
                 tab={tabs.includes(activeDrawerTab) ? activeDrawerTab : "Overview"}
@@ -307,6 +387,12 @@ export function CaseDrawer() {
                 canVerify={allow("verify")}
                 onAddNote={(noteText) => addNote(c.id, noteText, currentRole)}
                 canAddNote={allow("addNote")}
+                onRaiseQuery={(q) => raiseQuery(c.id, q, activeActor, currentRole)}
+                onResolveQuery={(qid, res) =>
+                  resolveQuery(c.id, qid, res, activeActor, currentRole)
+                }
+                canQuery={allow("query")}
+                canResolveQuery={allow("resolveQuery")}
               />
             </div>
 
@@ -353,9 +439,29 @@ export function CaseDrawer() {
                 <>
                   {allow("approve") && (
                     <ActionButton variant="primary" size="sm" onClick={() => setModal("approve")}>
-                      Approve
+                      {isCaseSlaBreached(c, currentDemoDate) ? "Approve (SLA Sanction)" : "Approve"}
                     </ActionButton>
                   )}
+                  {c.queryRaised &&
+                    allow("resolveQuery") &&
+                    c.queries?.some(
+                      (q) =>
+                        q.status === "OPEN" &&
+                        q.targetRoles.includes(currentRole) &&
+                        q.raisedByRole !== currentRole &&
+                        q.raisedBy !== currentRole &&
+                        q.raisedBy !== activeActor &&
+                        (currentRole !== "Officer" ||
+                          (q.raisedByRole !== "Officer" && q.raisedBy !== c.assignedOfficer)),
+                    ) && (
+                      <ActionButton
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => setDrawerTab("Queries")}
+                      >
+                        Resolve Query
+                      </ActionButton>
+                    )}
                   {allow("query") && (
                     <ActionButton size="sm" onClick={() => setModal("query")}>
                       Raise Query
@@ -371,6 +477,15 @@ export function CaseDrawer() {
 
               {c.stage === "disbursement" && (
                 <>
+                  {c.workflowStatus === "SLA Attention" && allow("reopenFile") && (
+                    <ActionButton
+                      variant="primary"
+                      size="sm"
+                      onClick={() => setModal("reopenFile")}
+                    >
+                      Re-open File
+                    </ActionButton>
+                  )}
                   {c.workflowStatus === "Verification" && allow("markReady") && (
                     <ActionButton variant="primary" size="sm" onClick={() => setModal("markReady")}>
                       Mark Ready
@@ -499,10 +614,20 @@ export function CaseDrawer() {
             )}
             {modal !== null && modal !== "nextFollowUp" && modal !== "assign" && (
               <TextArea
-                label={modal === "query" ? "Query" : "Remarks"}
+                label={
+                  modal === "query"
+                    ? "Query"
+                    : modal === "reopenFile"
+                      ? "Extension Remarks"
+                      : "Remarks"
+                }
                 value={text}
                 onChange={setText}
-                placeholder="Add context for the audit trail"
+                placeholder={
+                  modal === "reopenFile"
+                    ? "State executive reason for granting extension and re-opening file"
+                    : "Add context for the audit trail"
+                }
               />
             )}
           </div>
@@ -519,6 +644,7 @@ function modalTitle(kind: ModalKind): string {
     reject: "Reject application?",
     query: "Raise a query",
     markReady: "Mark ready for disbursement?",
+    reopenFile: "Re-open loan file?",
     disburse: "Confirm disbursement",
     followup: "Record follow-up",
     visit: "Record field visit",
@@ -540,6 +666,8 @@ function modalDescription(kind: ModalKind, c: LoanCase): string | undefined {
       return "Approval is a gate: the case moves to Operations for verification and disbursement.";
     case "reject":
       return "This closes the application. The decision is recorded in case history.";
+    case "reopenFile":
+      return "Re-opening this file grants an SLA extension and returns the case to active branch verification.";
     case "escalate":
       return "Escalation routes the case to the next authority level.";
     case "resolve":
@@ -556,6 +684,7 @@ function modalConfirm(kind: ModalKind): string {
     reject: "Reject",
     query: "Raise query",
     markReady: "Mark ready",
+    reopenFile: "Re-open File",
     disburse: "Disburse funds",
     followup: "Save follow-up",
     visit: "Save visit",
@@ -579,6 +708,10 @@ function DrawerBody({
   canVerify,
   onAddNote,
   canAddNote,
+  onRaiseQuery,
+  onResolveQuery,
+  canQuery,
+  canResolveQuery,
 }: {
   c: LoanCase;
   tab: string;
@@ -587,8 +720,27 @@ function DrawerBody({
   canVerify: boolean;
   onAddNote?: ((text: string) => void) | undefined;
   canAddNote?: boolean | undefined;
+  onRaiseQuery?: ((question: string) => void) | undefined;
+  onResolveQuery?: ((queryId: string, resolution: string) => void) | undefined;
+  canQuery?: boolean | undefined;
+  canResolveQuery?: boolean | undefined;
 }) {
+  const { currentRole, setDrawerTab } = useAppStore();
+  const scope = getScope(currentRole);
+  const activeActor = scope?.officer ?? currentRole;
   const collection = c.stage === "collections" ? getCollectionState(c, demoDate) : null;
+
+  if (tab === "Queries") {
+    return (
+      <QueriesTabContent
+        c={c}
+        onRaiseQuery={onRaiseQuery}
+        onResolveQuery={onResolveQuery}
+        canQuery={canQuery}
+        canResolveQuery={canResolveQuery}
+      />
+    );
+  }
 
   if (tab === "Overview")
     return (
@@ -672,6 +824,17 @@ function DrawerBody({
               { label: "Rate", value: pct(c.terms.interestRate) },
               { label: "EMI", value: inr(c.emiAmount) },
               { label: "Repayment", value: c.terms.repayment },
+              ...(c.approvalDate
+                ? [{ label: "Approval date", value: shortDate(c.approvalDate) }]
+                : []),
+              ...(c.reopenedBy
+                ? [
+                    {
+                      label: "Re-opened by",
+                      value: `${c.reopenedBy} (${c.reopenedAt ? shortDate(c.reopenedAt) : "Granted"})`,
+                    },
+                  ]
+                : []),
             ]}
           />
         </Block>
@@ -693,6 +856,75 @@ function DrawerBody({
                 </li>
               ))}
             </ul>
+          </Block>
+        )}
+        {/* Queries Snapshot within Loan Details */}
+        {c.queries && c.queries.length > 0 && (
+          <Block
+            title={`Queries on this Loan (${c.queries.filter((q) => q.status === "OPEN").length} Open)`}
+            icon={<HelpCircle className="size-3.5 text-warning" />}
+          >
+            <div className="space-y-2">
+              {c.queries.map((q) => {
+                const isAuthor =
+                  q.raisedBy === currentRole ||
+                  q.raisedByRole === currentRole ||
+                  q.raisedBy === activeActor ||
+                  (currentRole === "Officer" &&
+                    (q.raisedByRole === "Officer" || q.raisedBy === c.assignedOfficer));
+
+                return (
+                  <div
+                    key={q.id}
+                    className={cn(
+                      "rounded-xl border p-2.5 text-xs space-y-1.5",
+                      q.status === "OPEN"
+                        ? "border-warning/30 bg-warning/5"
+                        : "border-border/70 bg-surface/50",
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span
+                        className={cn(
+                          "rounded-md px-1.5 py-0.5 text-[9px] font-black uppercase",
+                          q.status === "OPEN"
+                            ? "bg-warning/20 text-warning"
+                            : "bg-success/15 text-success",
+                        )}
+                      >
+                        {q.status === "OPEN" ? "Open Query" : "Resolved"}
+                      </span>
+                      <span className="num text-[10px] text-muted-foreground">
+                        {q.raisedAt.replace("T", " ")}
+                      </span>
+                    </div>
+                    <p className="font-medium text-foreground text-xs leading-relaxed">
+                      "{q.question}"
+                    </p>
+                    <div className="flex items-center justify-between text-[10px] text-muted-foreground pt-0.5">
+                      <span>
+                        By {q.raisedBy} ({q.raisedByRole})
+                      </span>
+                      <span>To: {q.targetRoles.join(", ")}</span>
+                    </div>
+                    {q.status === "OPEN" && isAuthor && (
+                      <div className="pt-1 text-[10px] font-bold text-amber-500">
+                        ⏳ Awaiting response from {q.targetRoles.join(", ")}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setDrawerTab("Queries")}
+                  className="text-xs font-bold text-primary hover:underline cursor-pointer inline-flex items-center gap-1"
+                >
+                  View full queries thread in Queries tab →
+                </button>
+              </div>
+            </div>
           </Block>
         )}
         <LoanDetailsNotesSection c={c} onAddNote={onAddNote} canAddNote={canAddNote} />
@@ -1031,5 +1263,256 @@ function LoanDetailsNotesSection({
         </ul>
       )}
     </Block>
+  );
+}
+
+function QueriesTabContent({
+  c,
+  onRaiseQuery,
+  onResolveQuery,
+  canQuery,
+  canResolveQuery,
+}: {
+  c: LoanCase;
+  onRaiseQuery?: ((question: string) => void) | undefined;
+  onResolveQuery?: ((queryId: string, resolution: string) => void) | undefined;
+  canQuery?: boolean | undefined;
+  canResolveQuery?: boolean | undefined;
+}) {
+  const { currentRole } = useAppStore();
+  const scope = getScope(currentRole);
+  const activeActor = scope?.officer ?? currentRole;
+  const [newQuestion, setNewQuestion] = useState("");
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [resolutionText, setResolutionText] = useState("");
+
+  const queries = c.queries ?? [];
+  const openQueries = queries.filter((q) => q.status === "OPEN");
+  const resolvedQueries = queries.filter((q) => q.status === "RESOLVED");
+
+  const handleRaise = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newQuestion.trim() || !onRaiseQuery) return;
+    onRaiseQuery(newQuestion.trim());
+    setNewQuestion("");
+    toast.success("Query raised and routed to authorities");
+  };
+
+  const handleResolve = (queryId: string) => {
+    const targetQ = queries.find((x) => x.id === queryId);
+    if (!targetQ || !resolutionText.trim() || !onResolveQuery) return;
+    const isAuthor =
+      targetQ.raisedBy === currentRole ||
+      targetQ.raisedByRole === currentRole ||
+      targetQ.raisedBy === activeActor ||
+      (currentRole === "Officer" &&
+        (targetQ.raisedByRole === "Officer" || targetQ.raisedBy === c.assignedOfficer));
+    if (isAuthor) {
+      toast.error(
+        "You cannot resolve your own query. Clarification must come from the designated authority.",
+      );
+      return;
+    }
+    onResolveQuery(queryId, resolutionText.trim());
+    setResolutionText("");
+    setResolvingId(null);
+    toast.success("Query resolved and status updated");
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Raise Query Composer (Only if allowed & not MD) */}
+      {canQuery && (
+        <Block title="Raise New Query" icon={<HelpCircle className="size-3.5" />}>
+          <form
+            onSubmit={handleRaise}
+            className="space-y-2 rounded-xl border border-border/80 bg-surface/50 p-3 shadow-xs"
+          >
+            <p className="text-[11px] text-muted-foreground">
+              Queries route to higher authorities (Officer → Branch Manager; Branch Manager →
+              Regional Manager).
+            </p>
+            <textarea
+              rows={2}
+              value={newQuestion}
+              onChange={(e) => setNewQuestion(e.target.value)}
+              placeholder="State the discrepancy or document clarification needed..."
+              className="w-full resize-none rounded-lg border border-border bg-surface/80 p-2.5 text-xs text-foreground placeholder:text-muted-foreground/70 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+            />
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={!newQuestion.trim()}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-xs transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                <Send className="size-3" />
+                Submit Query
+              </button>
+            </div>
+          </form>
+        </Block>
+      )}
+
+      {/* Pending Open Queries */}
+      <Block
+        title={`Pending Queries (${openQueries.length})`}
+        icon={<AlertTriangle className="size-3.5 text-warning" />}
+      >
+        {openQueries.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border/70 p-4 text-center">
+            <p className="text-xs text-muted-foreground italic">
+              No open queries on this application.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {openQueries.map((q) => {
+              const isAuthor =
+                q.raisedBy === currentRole ||
+                q.raisedByRole === currentRole ||
+                q.raisedBy === activeActor ||
+                (currentRole === "Officer" &&
+                  (q.raisedByRole === "Officer" || q.raisedBy === c.assignedOfficer));
+              const isTarget = q.targetRoles.includes(currentRole);
+              const canResolveThisQuery = Boolean(canResolveQuery && !isAuthor && isTarget);
+
+              return (
+                <div
+                  key={q.id}
+                  className="rounded-xl border border-warning/30 bg-warning/5 p-3.5 shadow-xs space-y-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="rounded-md bg-warning/20 px-1.5 py-0.5 text-[9px] font-black text-warning uppercase">
+                        Open Query
+                      </span>
+                      <span className="text-[11px] font-bold text-foreground">
+                        {q.raisedBy} ({q.raisedByRole})
+                      </span>
+                    </div>
+                    <span className="num text-[10px] text-muted-foreground">
+                      {q.raisedAt.replace("T", " ")}
+                    </span>
+                  </div>
+
+                  <p className="text-xs font-medium text-foreground leading-relaxed">
+                    {q.question}
+                  </p>
+
+                  <div className="flex items-center justify-between pt-1 border-t border-warning/15 text-[10px] text-muted-foreground">
+                    <span>Routed to: {q.targetRoles.join(", ")}</span>
+                    {isAuthor ? (
+                      <span className="rounded-md bg-amber-500/15 text-amber-500 px-2 py-0.5 text-[9px] font-bold">
+                        Awaiting response from {q.targetRoles.join(", ")}
+                      </span>
+                    ) : canResolveThisQuery ? (
+                      resolvingId !== q.id && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setResolvingId(q.id);
+                            setResolutionText("");
+                          }}
+                          className="font-bold text-primary hover:underline cursor-pointer"
+                        >
+                          Respond & Resolve →
+                        </button>
+                      )
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground italic">
+                        Pending with {q.targetRoles.join(", ")}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Inline Resolution Box */}
+                  {resolvingId === q.id && (
+                    <div className="mt-2 space-y-2 rounded-lg border border-border bg-surface/90 p-2.5 animate-in fade-in-50 duration-150">
+                      <label className="block text-[11px] font-semibold text-foreground">
+                        Resolution / Clarification Remarks:
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={resolutionText}
+                        onChange={(e) => setResolutionText(e.target.value)}
+                        placeholder="e.g. Borrower submitted revised statements; bank credits verified..."
+                        className="w-full resize-none rounded-md border border-border bg-background p-2 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      />
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setResolvingId(null)}
+                          className="rounded-md px-2.5 py-1 text-xs font-medium text-muted-foreground hover:bg-muted"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!resolutionText.trim()}
+                          onClick={() => handleResolve(q.id)}
+                          className="inline-flex items-center gap-1 rounded-md bg-success px-3 py-1 text-xs font-semibold text-success-foreground shadow-xs hover:bg-success/90 disabled:opacity-50 cursor-pointer"
+                        >
+                          <CheckCircle2 className="size-3" />
+                          Resolve Query
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Block>
+
+      {/* Past Resolved Queries History */}
+      <Block
+        title={`Past Resolved Queries (${resolvedQueries.length})`}
+        icon={<CheckCircle2 className="size-3.5 text-success" />}
+      >
+        {resolvedQueries.length === 0 ? (
+          <div className="rounded-xl border border-dashed border-border/70 p-4 text-center">
+            <p className="text-xs text-muted-foreground italic">No past resolved queries.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {resolvedQueries.map((q) => (
+              <div
+                key={q.id}
+                className="rounded-xl border border-border/80 bg-surface/50 p-3.5 shadow-xs space-y-2"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className="rounded-md bg-success/15 px-1.5 py-0.5 text-[9px] font-black text-success uppercase">
+                      Resolved
+                    </span>
+                    <span className="text-[11px] font-bold text-foreground">
+                      Asked by {q.raisedBy} ({q.raisedByRole})
+                    </span>
+                  </div>
+                  <span className="num text-[10px] text-muted-foreground">
+                    {q.raisedAt.replace("T", " ")}
+                  </span>
+                </div>
+
+                <p className="text-xs text-foreground/90 italic">"{q.question}"</p>
+
+                {q.resolution && (
+                  <div className="rounded-lg border border-success/20 bg-success/5 p-2.5 text-xs text-foreground space-y-1">
+                    <div className="flex items-center justify-between text-[10px] text-success font-semibold">
+                      <span>
+                        Resolution by {q.resolvedBy} ({q.resolvedByRole})
+                      </span>
+                      <span className="num">{q.resolvedAt?.replace("T", " ")}</span>
+                    </div>
+                    <p className="text-xs text-foreground font-medium">{q.resolution}</p>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Block>
+    </div>
   );
 }

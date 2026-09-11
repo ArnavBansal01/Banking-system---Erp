@@ -30,6 +30,7 @@ export type WorkflowStatus =
   | "Ready for Disbursement"
   | "Disbursements"
   | "Disbursed"
+  | "SLA Attention"
   // collections (lifecycle status)
   | "DUE"
   | "OVERDUE"
@@ -141,6 +142,9 @@ export interface LoanCase {
 
   // application SLA
   applicationDate: string | null;
+  approvalDate: string | null;
+  reopenedAt: string | null;
+  reopenedBy: string | null;
   disbursedDate: string | null;
   disbursedAmount: number;
 
@@ -161,7 +165,22 @@ export interface LoanCase {
   financials: Financials;
   exceptions: ExceptionRecord[];
   notes: { id: string; timestamp: string; actor: string; text: string }[];
+  queries: CaseQuery[];
   history: HistoryEvent[];
+}
+
+export interface CaseQuery {
+  id: string;
+  question: string;
+  raisedBy: string;
+  raisedByRole: Role | string;
+  raisedAt: string;
+  targetRoles: Role[];
+  status: "OPEN" | "RESOLVED";
+  resolution?: string | undefined;
+  resolvedBy?: string | undefined;
+  resolvedByRole?: Role | string | undefined;
+  resolvedAt?: string | undefined;
 }
 
 export type NotificationType =
