@@ -1,5 +1,6 @@
 import * as React from "react";
-import { Crown, Building2, Landmark, UserCheck, ChevronDown, Check } from "lucide-react";
+import { Crown, Building2, Landmark, UserCheck, ChevronDown, Check, RotateCcw } from "lucide-react";
+import { toast } from "sonner";
 import { useAppStore } from "@/store/useAppStore";
 import { DEMO_ROLES, getScope } from "@/utils/scope";
 import type { Role } from "@/types/loan";
@@ -56,7 +57,7 @@ function getRoleShortTag(role: Role): string {
 }
 
 export function UserRoleMenu() {
-  const { currentRole, setRole } = useAppStore();
+  const { currentRole, setRole, resetData } = useAppStore();
   const scope = getScope(currentRole);
   const officerOrRoleName = scope.officer ?? currentRole;
 
@@ -173,6 +174,19 @@ export function UserRoleMenu() {
             );
           })}
         </div>
+
+        <div className="my-1 border-t border-border/40" />
+
+        <DropdownMenuItem
+          onClick={() => {
+            resetData();
+            toast.success("Demo data reset to initial seed state");
+          }}
+          className="group flex cursor-pointer select-none items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-muted-foreground hover:bg-destructive/10 hover:text-destructive outline-none transition-all duration-150"
+        >
+          <RotateCcw className="size-3.5 shrink-0 transition-transform duration-200 group-hover:-rotate-90" />
+          <span>Reset Demo Data</span>
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );

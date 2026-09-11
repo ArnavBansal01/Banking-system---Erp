@@ -10,6 +10,7 @@ export interface ERPDataProvider {
   getCases(): LoanCase[];
   getCaseById(id: string): LoanCase | undefined;
   getInitialDemoDate(): string;
+  reset(): LoanCase[];
 }
 
 class MockDataProvider implements ERPDataProvider {
@@ -22,6 +23,10 @@ class MockDataProvider implements ERPDataProvider {
   }
   getInitialDemoDate() {
     return "2026-09-02";
+  }
+  reset() {
+    this.cases = adaptCases(seedData);
+    return this.cases;
   }
 }
 
