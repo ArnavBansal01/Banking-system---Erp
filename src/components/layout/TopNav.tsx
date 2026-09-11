@@ -25,7 +25,7 @@ export function TopNav() {
           <span className="grid size-8 place-items-center rounded-lg bg-primary/15 text-primary">
             <Landmark className="size-4" aria-hidden />
           </span>
-          <span className="text-sm font-extrabold tracking-tight text-foreground">NBFC ERP</span>
+          <span className="text-sm font-extrabold tracking-tight text-foreground">NBFC</span>
         </div>
 
         <nav
