@@ -1,0 +1,217 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * NBFC ERP design system — refined dark enterprise theme.
+ * All colors are oklch tokens. Never hardcode colors in components.
+ */
+
+@theme inline {
+  --font-sans:
+    "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-review: var(--review);
+  --color-review-foreground: var(--review-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --shadow-panel: var(--panel-shadow);
+  --shadow-drawer: var(--drawer-shadow);
+}
+
+:root {
+  --radius: 0.875rem;
+
+  --background: oklch(0.16 0.014 258);
+  --foreground: oklch(0.97 0.004 250);
+  --surface: oklch(0.2 0.015 258);
+  --surface-raised: oklch(0.235 0.016 258);
+  --card: oklch(0.205 0.015 258);
+  --card-foreground: oklch(0.97 0.004 250);
+  --popover: oklch(0.215 0.016 258);
+  --popover-foreground: oklch(0.97 0.004 250);
+
+  --primary: oklch(0.72 0.13 195);
+  --primary-foreground: oklch(0.17 0.02 240);
+  --secondary: oklch(0.27 0.018 258);
+  --secondary-foreground: oklch(0.93 0.006 250);
+  --muted: oklch(0.25 0.015 258);
+  --muted-foreground: oklch(0.68 0.014 254);
+  --accent: oklch(0.3 0.02 258);
+  --accent-foreground: oklch(0.97 0.004 250);
+
+  --destructive: oklch(0.63 0.2 22);
+  --destructive-foreground: oklch(0.98 0.005 250);
+  --success: oklch(0.72 0.15 158);
+  --success-foreground: oklch(0.18 0.03 160);
+  --warning: oklch(0.79 0.15 82);
+  --warning-foreground: oklch(0.2 0.04 80);
+  --info: oklch(0.68 0.14 250);
+  --info-foreground: oklch(0.98 0.005 250);
+  --review: oklch(0.68 0.15 300);
+  --review-foreground: oklch(0.98 0.005 250);
+
+  --border: oklch(1 0 0 / 9%);
+  --border-strong: oklch(1 0 0 / 16%);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.72 0.13 195 / 60%);
+
+  --panel-shadow: 0 1px 0 0 oklch(1 0 0 / 4%) inset, 0 24px 48px -24px oklch(0 0 0 / 60%);
+  --drawer-shadow: -32px 0 64px -24px oklch(0 0 0 / 70%);
+  --glass-bg: oklch(1 0 0 / 4%);
+  --scrollbar-thumb: oklch(1 0 0 / 12%);
+  --glow-1: oklch(0.72 0.13 195 / 10%);
+  --glow-2: oklch(0.68 0.15 300 / 8%);
+}
+
+.dark {
+  color-scheme: dark;
+}
+
+html.light {
+  color-scheme: light;
+
+  --background: oklch(0.975 0.004 250);
+  --foreground: oklch(0.22 0.02 258);
+  --surface: oklch(1 0 0);
+  --surface-raised: oklch(0.99 0.003 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.22 0.02 258);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.22 0.02 258);
+
+  --primary: oklch(0.55 0.12 205);
+  --primary-foreground: oklch(0.99 0.003 250);
+  --secondary: oklch(0.94 0.006 250);
+  --secondary-foreground: oklch(0.26 0.02 258);
+  --muted: oklch(0.95 0.005 250);
+  --muted-foreground: oklch(0.5 0.015 254);
+  --accent: oklch(0.93 0.008 250);
+  --accent-foreground: oklch(0.24 0.02 258);
+
+  --destructive: oklch(0.56 0.2 24);
+  --destructive-foreground: oklch(0.99 0.003 250);
+  --success: oklch(0.55 0.14 158);
+  --success-foreground: oklch(0.99 0.003 250);
+  --warning: oklch(0.62 0.14 72);
+  --warning-foreground: oklch(0.99 0.003 250);
+  --info: oklch(0.55 0.15 255);
+  --info-foreground: oklch(0.99 0.003 250);
+  --review: oklch(0.55 0.17 300);
+  --review-foreground: oklch(0.99 0.003 250);
+
+  --border: oklch(0.2 0.02 258 / 12%);
+  --border-strong: oklch(0.2 0.02 258 / 22%);
+  --input: oklch(0.2 0.02 258 / 16%);
+  --ring: oklch(0.55 0.12 205 / 50%);
+
+  --glass-bg: oklch(1 0 0 / 70%);
+  --scrollbar-thumb: oklch(0.2 0.02 258 / 20%);
+  --glow-1: oklch(0.55 0.12 205 / 8%);
+  --glow-2: oklch(0.55 0.17 300 / 6%);
+
+  --panel-shadow: 0 1px 0 0 oklch(1 0 0 / 60%) inset, 0 18px 40px -28px oklch(0.2 0.02 258 / 30%);
+  --drawer-shadow: -32px 0 64px -32px oklch(0.2 0.02 258 / 25%);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  html.light {
+    color-scheme: light;
+  }
+
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv02", "ss01";
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      radial-gradient(900px 480px at 12% -8%, var(--glow-1), transparent 60%),
+      radial-gradient(760px 420px at 92% 0%, var(--glow-2), transparent 62%);
+    background-attachment: fixed;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [type="button"],
+  [type="submit"],
+  [type="reset"],
+  select,
+  summary {
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 999px;
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+}
+
+@utility glass {
+  background-color: var(--glass-bg);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--color-border);
+}
+
+@utility num {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
