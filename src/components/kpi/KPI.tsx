@@ -59,7 +59,13 @@ export function KPI({
   );
 }
 
-export function KPIGroup({ children, cols = 5 }: { children: ReactNode; cols?: number | undefined }) {
+export function KPIGroup({
+  children,
+  cols = 5,
+}: {
+  children: ReactNode;
+  cols?: number | undefined;
+}) {
   return (
     <div
       className={cn(

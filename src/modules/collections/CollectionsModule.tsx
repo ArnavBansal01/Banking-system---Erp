@@ -12,11 +12,25 @@ import { GlassPanel, SectionHeading } from "@/components/ui/GlassPanel";
 import { EmptyState, FilterBar, SearchBar, SelectField } from "@/components/ui/Controls";
 import { DataList } from "@/components/ui/DataList";
 import { BouncedBadge, PriorityBadge, StatusBadge } from "@/components/ui/Badges";
-import type { LoanCase } from "@/types/loan";
+import type { CollectionUrgency, LoanCase } from "@/types/loan";
+
+const urgencyAccent: Record<CollectionUrgency, "success" | "warning" | "danger"> = {
+  healthy: "success",
+  due: "warning",
+  overdue: "danger",
+  resolved: "success",
+};
 
 export function CollectionsModule() {
-  const { currentRole, currentDemoDate, search, setSearch, filterPriority, setFilterPriority, selectCase } =
-    useAppStore();
+  const {
+    currentRole,
+    currentDemoDate,
+    search,
+    setSearch,
+    filterPriority,
+    setFilterPriority,
+    selectCase,
+  } = useAppStore();
   const visible = useVisibleCases();
   const scope = getScope(currentRole);
   const buckets = collectionBuckets(visible, currentDemoDate);
@@ -33,11 +47,20 @@ export function CollectionsModule() {
     { key: "escalated", title: "Escalated", list: buckets.escalated, accent: "danger" },
   ];
   if (buckets.resolved.length > 0)
-    columns.push({ key: "resolved", title: "Resolved this cycle", list: buckets.resolved, accent: "success" });
+    columns.push({
+      key: "resolved",
+      title: "Resolved this cycle",
+      list: buckets.resolved,
+      accent: "success",
+    });
 
   const overdueAmount = buckets.overdue.reduce((a, c) => a + c.emiAmount, 0);
   const collected = active.reduce(
-    (a, c) => a + c.payments.filter((p) => p.date.slice(0, 7) === currentDemoDate.slice(0, 7)).reduce((x, p) => x + p.amount, 0),
+    (a, c) =>
+      a +
+      c.payments
+        .filter((p) => p.date.slice(0, 7) === currentDemoDate.slice(0, 7))
+        .reduce((x, p) => x + p.amount, 0),
     0,
   );
 
@@ -50,11 +73,40 @@ export function CollectionsModule() {
       />
 
       <KPIGroup>
-        <KPI label="Active loans" value={active.length} icon={<IndianRupee className="size-3.5" />} support="In repayment cycle" />
-        <KPI label="Due now" value={buckets.due.length} status="warning" icon={<CalendarClock className="size-3.5" />} support="Inside due window" />
-        <KPI label="Overdue" value={buckets.overdue.length} status="danger" icon={<TrendingDown className="size-3.5" />} support={`${inr(overdueAmount, true)} at risk`} />
-        <KPI label="Escalated" value={buckets.escalated.length} status="danger" icon={<AlertOctagon className="size-3.5" />} support="With higher authority" />
-        <KPI label="Collected this month" value={inr(collected, true)} status="success" icon={<CheckCircle2 className="size-3.5" />} support={`${buckets.resolved.length} resolved`} />
+        <KPI
+          label="Active loans"
+          value={active.length}
+          icon={<IndianRupee className="size-3.5" />}
+          support="In repayment cycle"
+        />
+        <KPI
+          label="Due now"
+          value={buckets.due.length}
+          status="warning"
+          icon={<CalendarClock className="size-3.5" />}
+          support="Inside due window"
+        />
+        <KPI
+          label="Overdue"
+          value={buckets.overdue.length}
+          status="danger"
+          icon={<TrendingDown className="size-3.5" />}
+          support={`${inr(overdueAmount, true)} at risk`}
+        />
+        <KPI
+          label="Escalated"
+          value={buckets.escalated.length}
+          status="danger"
+          icon={<AlertOctagon className="size-3.5" />}
+          support="With higher authority"
+        />
+        <KPI
+          label="Collected this month"
+          value={inr(collected, true)}
+          status="success"
+          icon={<CheckCircle2 className="size-3.5" />}
+          support={`${buckets.resolved.length} resolved`}
+        />
       </KPIGroup>
 
       <FilterBar
@@ -94,17 +146,21 @@ export function CollectionsModule() {
                 <KanbanCard
                   key={c.id}
                   onClick={() => selectCase(c.id)}
-                  accent={s.status === "RESOLVED" ? "success" : s.status === "DUE" ? "warning" : "danger"}
+                  accent={urgencyAccent[s.urgency]}
                 >
                   <CardRow>
-                    <span className="truncate text-sm font-semibold text-foreground">{c.clientName}</span>
-                    <StatusBadge status={s.status} />
+                    <span className="truncate text-sm font-semibold text-foreground">
+                      {c.clientName}
+                    </span>
+                    <StatusBadge status={s.status} urgency={s.urgency} />
                   </CardRow>
                   <p className="num mt-1 text-xs text-muted-foreground">
                     EMI {inr(c.emiAmount)} · {s.dueWindow}
                   </p>
                   <CardRow className="mt-2">
-                    <span className="num text-[11px] font-medium text-muted-foreground">{s.label}</span>
+                    <span className="num text-[11px] font-medium text-muted-foreground">
+                      {s.label}
+                    </span>
                     <span className="flex items-center gap-1">
                       {s.hasBounced && <BouncedBadge />}
                       <PriorityBadge priority={c.priority} />

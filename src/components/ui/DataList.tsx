@@ -48,7 +48,9 @@ export function DataList({
               )}
             </div>
             {item.meta && <div className="flex shrink-0 items-center gap-2">{item.meta}</div>}
-            {onSelect && <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />}
+            {onSelect && (
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            )}
           </button>
         </li>
       ))}
@@ -59,7 +61,13 @@ export function DataList({
 export function Timeline({
   events,
 }: {
-  events: { id: string; timestamp: string; actor: string; action: string; note?: string | undefined }[];
+  events: {
+    id: string;
+    timestamp: string;
+    actor: string;
+    action: string;
+    note?: string | undefined;
+  }[];
 }) {
   return (
     <ol className="relative space-y-4 pl-5">

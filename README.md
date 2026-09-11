@@ -5,6 +5,7 @@ A unified Enterprise NBFC platform for managing the end-to-end loan lifecycle â€
 ## Overview
 
 This system provides institutional loan lifecycle management:
+
 - **Lead & Enquiry Management**: Lead capture, applicant profiling, and initial verification.
 - **Credit Underwriting**: Financial assessment, ratio calculations, risk profiling, and decision engine.
 - **Operations & Documentation**: Document verification, sanctions, and pre-disbursement compliance.

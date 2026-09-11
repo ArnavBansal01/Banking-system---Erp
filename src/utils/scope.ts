@@ -71,10 +71,9 @@ export function scopedCases(cases: LoanCase[], role: Role): LoanCase[] {
 }
 
 /** Next drill-down dimension for management views. */
-export function drillDimension(role: Role): keyof Pick<
-  LoanCase,
-  "region" | "area" | "branch" | "assignedOfficer"
-> {
+export function drillDimension(
+  role: Role,
+): keyof Pick<LoanCase, "region" | "area" | "branch" | "assignedOfficer"> {
   const level = getScope(role).level;
   if (level === "company") return "region";
   if (level === "region") return "area";

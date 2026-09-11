@@ -4,11 +4,7 @@ import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/Controls";
 
 export function KanbanBoard({ children }: { children: ReactNode }) {
-  return (
-    <div className="flex gap-3 overflow-x-auto pb-2">
-      {children}
-    </div>
-  );
+  return <div className="flex gap-3 overflow-x-auto pb-2">{children}</div>;
 }
 
 export function KanbanColumn({
@@ -87,6 +83,12 @@ export function KanbanCard({
   );
 }
 
-export function CardRow({ children, className }: { children: ReactNode; className?: string | undefined }) {
+export function CardRow({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string | undefined;
+}) {
   return <div className={cn("flex items-center justify-between gap-2", className)}>{children}</div>;
 }

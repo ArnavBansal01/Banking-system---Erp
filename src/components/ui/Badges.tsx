@@ -1,6 +1,6 @@
 import { AlertTriangle, MessageSquare, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { Priority, Temperature } from "@/types/loan";
+import type { CollectionUrgency, Priority, Temperature } from "@/types/loan";
 
 type Tone = "neutral" | "success" | "warning" | "danger" | "info" | "review";
 
@@ -50,11 +50,32 @@ const statusTone: Record<string, Tone> = {
   OVERDUE: "danger",
   ESCALATED: "danger",
   RESOLVED: "success",
+  healthy: "success",
+  due: "warning",
+  overdue: "danger",
+  resolved: "success",
 };
 
-export function StatusBadge({ status, className }: { status: string; className?: string | undefined }) {
+const urgencyTone: Record<CollectionUrgency, Tone> = {
+  healthy: "success",
+  due: "warning",
+  overdue: "danger",
+  resolved: "success",
+};
+
+export function StatusBadge({
+  status,
+  urgency,
+  className,
+}: {
+  status: string;
+  urgency?: CollectionUrgency | undefined;
+  className?: string | undefined;
+}) {
+  const tone: Tone =
+    (urgency ? urgencyTone[urgency] : undefined) ?? statusTone[status] ?? "neutral";
   return (
-    <Badge tone={statusTone[status] ?? "neutral"} className={className}>
+    <Badge tone={tone} className={className}>
       {status}
     </Badge>
   );
@@ -116,7 +137,8 @@ export function SlaBadge({
   total: number;
   urgency: "Normal" | "At Risk" | "Critical";
 }) {
-  const tone: Tone = urgency === "Critical" ? "danger" : urgency === "At Risk" ? "warning" : "success";
+  const tone: Tone =
+    urgency === "Critical" ? "danger" : urgency === "At Risk" ? "warning" : "success";
   return (
     <Badge tone={tone} className="num">
       Day {day}/{total}

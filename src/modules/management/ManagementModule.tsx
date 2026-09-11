@@ -39,12 +39,44 @@ export function ManagementModule() {
       />
 
       <KPIGroup cols={6}>
-        <KPI label="Portfolio value" value={inr(metrics.totalLoanValue, true)} icon={<Layers className="size-3.5" />} support={`${metrics.totalCases} cases`} />
-        <KPI label="Disbursed" value={inr(metrics.totalDisbursed, true)} status="success" icon={<Banknote className="size-3.5" />} support={`${metrics.activeLoans} active loans`} />
-        <KPI label="Conversion" value={`${metrics.conversionRate.toFixed(0)}%`} status="info" icon={<Activity className="size-3.5" />} support={`${metrics.enquiries} open enquiries`} />
-        <KPI label="Overdue" value={buckets.overdue.length} status="danger" support={`${inr(metrics.overdueAmount, true)} at risk`} />
-        <KPI label="Escalations" value={buckets.escalated.length} status="warning" support="Needing authority" />
-        <KPI label="Avg rate" value={pct(metrics.avgRate)} icon={<Percent className="size-3.5" />} support={`Avg ticket ${inr(metrics.avgTicket, true)}`} />
+        <KPI
+          label="Portfolio value"
+          value={inr(metrics.totalLoanValue, true)}
+          icon={<Layers className="size-3.5" />}
+          support={`${metrics.totalCases} cases`}
+        />
+        <KPI
+          label="Disbursed"
+          value={inr(metrics.totalDisbursed, true)}
+          status="success"
+          icon={<Banknote className="size-3.5" />}
+          support={`${metrics.activeLoans} active loans`}
+        />
+        <KPI
+          label="Conversion"
+          value={`${metrics.conversionRate.toFixed(0)}%`}
+          status="info"
+          icon={<Activity className="size-3.5" />}
+          support={`${metrics.enquiries} open enquiries`}
+        />
+        <KPI
+          label="Overdue"
+          value={buckets.overdue.length}
+          status="danger"
+          support={`${inr(metrics.overdueAmount, true)} at risk`}
+        />
+        <KPI
+          label="Escalations"
+          value={buckets.escalated.length}
+          status="warning"
+          support="Needing authority"
+        />
+        <KPI
+          label="Avg rate"
+          value={pct(metrics.avgRate)}
+          icon={<Percent className="size-3.5" />}
+          support={`Avg ticket ${inr(metrics.avgTicket, true)}`}
+        />
       </KPIGroup>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -61,10 +93,16 @@ export function ManagementModule() {
                   <li key={g.name}>
                     <div className="flex items-baseline justify-between gap-3">
                       <span className="text-sm font-semibold text-foreground">{g.name}</span>
-                      <span className="num text-sm font-semibold text-foreground">{inr(value, true)}</span>
+                      <span className="num text-sm font-semibold text-foreground">
+                        {inr(value, true)}
+                      </span>
                     </div>
                     <div className="mt-1.5">
-                      <ProgressBar value={value} max={maxValue} tone={od > 0 ? "warning" : "primary"} />
+                      <ProgressBar
+                        value={value}
+                        max={maxValue}
+                        tone={od > 0 ? "warning" : "primary"}
+                      />
                     </div>
                     <p className="num mt-1 text-[11px] text-muted-foreground">
                       {g.cases.length} cases · {od} overdue
@@ -77,7 +115,11 @@ export function ManagementModule() {
         </GlassPanel>
 
         <div className="space-y-4">
-          <MetricCard title="Disbursement vs target" value={inr(metrics.totalDisbursed, true)} footer={`Target ${inr(metrics.target, true)}`}>
+          <MetricCard
+            title="Disbursement vs target"
+            value={inr(metrics.totalDisbursed, true)}
+            footer={`Target ${inr(metrics.target, true)}`}
+          >
             <ProgressBar value={metrics.totalDisbursed} max={metrics.target} tone="success" />
           </MetricCard>
           <MetricCard title="Pipeline health" footer="Cases by stage">
@@ -112,7 +154,11 @@ export function ManagementModule() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <GlassPanel accent="danger">
-          <SectionHeading title="Highest exposure at risk" count={buckets.overdue.length} icon={<Target className="size-4 text-destructive" />} />
+          <SectionHeading
+            title="Highest exposure at risk"
+            count={buckets.overdue.length}
+            icon={<Target className="size-4 text-destructive" />}
+          />
           <DataList
             items={[...buckets.overdue, ...buckets.escalated]
               .sort((a, b) => b.outstanding - a.outstanding)
@@ -137,7 +183,11 @@ export function ManagementModule() {
                 id: c.id,
                 primary: c.clientName,
                 secondary: `${c.stage.replace("_", " ")} · ${c.workflowStatus} · ${c.branch}`,
-                meta: <span className="num text-xs text-muted-foreground">{inr(c.loanAmount, true)}</span>,
+                meta: (
+                  <span className="num text-xs text-muted-foreground">
+                    {inr(c.loanAmount, true)}
+                  </span>
+                ),
                 accent: "info" as const,
               }))}
             onSelect={selectCase}

@@ -33,10 +33,10 @@ export function ThemeToggle() {
       aria-label="Theme"
       className="flex items-center gap-0.5 rounded-lg border border-border bg-surface/70 p-0.5"
     >
-      {([
+      {[
         { value: "dark" as Theme, label: "Dark theme", Icon: Moon },
         { value: "light" as Theme, label: "Light theme", Icon: Sun },
-      ]).map(({ value, label, Icon }) => (
+      ].map(({ value, label, Icon }) => (
         <button
           key={value}
           type="button"

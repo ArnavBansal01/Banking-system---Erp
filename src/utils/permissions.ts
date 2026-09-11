@@ -51,22 +51,12 @@ const BRANCH_MANAGER: Action[] = [
   "resolve",
 ];
 
-const REGIONAL_MANAGER: Action[] = [
-  "review",
-  "approve",
-  "reject",
-  "query",
-  "escalate",
-  "assign",
-  "reassign",
-  "hold",
-  "release",
-  "resolve",
-  "addNote",
-  "setNextFollowUp",
-];
+// Regional Manager has full oversight and inherits all Branch Manager powers
+const REGIONAL_MANAGER: Action[] = [...BRANCH_MANAGER];
 
-const MD: Action[] = ["approve", "reject", "escalate", "resolve", "addNote"];
+// Managing Director is the supreme authority: can perform all actions across the book,
+// but has no higher level to escalate to (so 'escalate' is excluded).
+const MD: Action[] = BRANCH_MANAGER.filter((action) => action !== "escalate");
 
 const MATRIX: Record<Role, Action[]> = {
   Officer: OFFICER,
@@ -83,16 +73,21 @@ export function can(role: Role, action: Action, c?: LoanCase): boolean {
   if (!c) return true;
   switch (action) {
     case "convertToApplication":
-      return c.stage === "enquiry" && c.workflowStatus === "Interested";
+      return c.stage === "enquiry";
     case "recordFollowUp":
       return c.stage === "enquiry" || c.stage === "collections";
     case "editEnquiry":
       return c.stage === "enquiry";
     case "approve":
+      if (c.stage !== "credit_review") return false;
+      // Policy deviations (e.g. low CIBIL score) exceed Branch Manager sanction limits and require Regional Manager or MD sign-off
+      if (c.cibilException && role === "Branch Manager") return false;
+      return true;
     case "reject":
-    case "query":
     case "review":
       return c.stage === "credit_review";
+    case "query":
+      return c.stage === "credit_review" || c.stage === "disbursement";
     case "verify":
     case "markReady":
       return c.stage === "disbursement" && c.workflowStatus !== "Disbursed";
@@ -103,6 +98,8 @@ export function can(role: Role, action: Action, c?: LoanCase): boolean {
       return c.stage === "collections";
     case "resolve":
       return c.stage === "collections" && c.workflowStatus !== "RESOLVED";
+    case "escalate":
+      return !c.escalated && c.stage !== "closed";
     default:
       return true;
   }
@@ -117,7 +114,5 @@ export const DEVIATION_AUTHORITY: { maxDeviation: number; authority: string }[] 
 ];
 
 export function authorityFor(deviation: number): string {
-  return (
-    DEVIATION_AUTHORITY.find((r) => deviation <= r.maxDeviation)?.authority ?? "CEO / MD"
-  );
+  return DEVIATION_AUTHORITY.find((r) => deviation <= r.maxDeviation)?.authority ?? "CEO / MD";
 }

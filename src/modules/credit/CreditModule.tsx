@@ -16,8 +16,15 @@ import { DataList } from "@/components/ui/DataList";
 import { ExceptionBadge, PriorityBadge, QueryBadge, SlaBadge } from "@/components/ui/Badges";
 
 export function CreditModule() {
-  const { currentRole, currentDemoDate, search, setSearch, filterPriority, setFilterPriority, selectCase } =
-    useAppStore();
+  const {
+    currentRole,
+    currentDemoDate,
+    search,
+    setSearch,
+    filterPriority,
+    setFilterPriority,
+    selectCase,
+  } = useAppStore();
   const visible = useVisibleCases();
   const scope = getScope(currentRole);
   const metrics = computeMetrics(visible, currentDemoDate);
@@ -39,9 +46,25 @@ export function CreditModule() {
       />
 
       <KPIGroup>
-        <KPI label="In credit queue" value={credit.length} icon={<ClipboardCheck className="size-3.5" />} support="Awaiting decision" />
-        <KPI label="Under review" value={metrics.underReview} status="info" support="Being assessed" />
-        <KPI label="Open queries" value={queries.length} status="warning" icon={<MessageSquare className="size-3.5" />} support="Waiting on sales" />
+        <KPI
+          label="In credit queue"
+          value={credit.length}
+          icon={<ClipboardCheck className="size-3.5" />}
+          support="Awaiting decision"
+        />
+        <KPI
+          label="Under review"
+          value={metrics.underReview}
+          status="info"
+          support="Being assessed"
+        />
+        <KPI
+          label="Open queries"
+          value={queries.length}
+          status="warning"
+          icon={<MessageSquare className="size-3.5" />}
+          support="Waiting on sales"
+        />
         <KPI
           label="SLA breach risk"
           value={atRisk.length}
@@ -49,7 +72,13 @@ export function CreditModule() {
           icon={<Clock className="size-3.5" />}
           support="Day 11+ of 15"
         />
-        <KPI label="CIBIL exceptions" value={exceptions.length} status="warning" icon={<ShieldAlert className="size-3.5" />} support="Need authority sign-off" />
+        <KPI
+          label="CIBIL exceptions"
+          value={exceptions.length}
+          status="warning"
+          icon={<ShieldAlert className="size-3.5" />}
+          support="Need authority sign-off"
+        />
       </KPIGroup>
 
       <FilterBar
@@ -91,14 +120,19 @@ export function CreditModule() {
                   <KanbanCard
                     key={c.id}
                     onClick={() => selectCase(c.id)}
-                    accent={sla?.urgency === "Critical" ? "danger" : c.cibilException ? "review" : "info"}
+                    accent={
+                      sla?.urgency === "Critical" ? "danger" : c.cibilException ? "review" : "info"
+                    }
                   >
                     <CardRow>
-                      <span className="truncate text-sm font-semibold text-foreground">{c.clientName}</span>
+                      <span className="truncate text-sm font-semibold text-foreground">
+                        {c.clientName}
+                      </span>
                       {sla && <SlaBadge day={sla.day} total={sla.total} urgency={sla.urgency} />}
                     </CardRow>
                     <p className="num mt-1 text-xs text-muted-foreground">
-                      {inr(c.loanAmount, true)} · CIBIL {c.credit.cibil} · {pct(c.terms.interestRate)}
+                      {inr(c.loanAmount, true)} · CIBIL {c.credit.cibil} ·{" "}
+                      {pct(c.terms.interestRate)}
                     </p>
                     <CardRow className="mt-2">
                       <span className="flex flex-wrap items-center gap-1">

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Banknote,
@@ -7,7 +7,9 @@ import {
   Circle,
   CreditCard,
   MapPin,
+  MessageSquare,
   Phone,
+  Send,
   Wallet,
   X,
   XCircle,
@@ -17,7 +19,7 @@ import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
 import { can, type Action } from "@/utils/permissions";
 import { getApplicationSla, getCollectionState } from "@/utils/dates";
-import { TRANSITIONS } from "@/utils/transitions";
+import { TRANSITIONS, nextEmmsStatus } from "@/utils/transitions";
 import { inr, longDate, pct, shortDate } from "@/utils/format";
 import type { LoanCase } from "@/types/loan";
 import {
@@ -29,7 +31,13 @@ import {
   StatusBadge,
   TemperatureBadge,
 } from "@/components/ui/Badges";
-import { ActionButton, ConfirmationModal, EmptyState, TextArea, TextField } from "@/components/ui/Controls";
+import {
+  ActionButton,
+  ConfirmationModal,
+  EmptyState,
+  TextArea,
+  TextField,
+} from "@/components/ui/Controls";
 import { KeyValue, Timeline } from "@/components/ui/DataList";
 
 type ModalKind =
@@ -104,10 +112,10 @@ export function CaseDrawer() {
   const tabs = useMemo(() => (c ? tabsFor(c) : []), [c]);
   const open = Boolean(c);
 
-  const closeModal = () => {
+  const closeModal = useCallback(() => {
     setModal(null);
     setText("");
-  };
+  }, []);
 
   const allow = (a: Action) => (c ? can(currentRole, a, c) : false);
 
@@ -135,7 +143,13 @@ export function CaseDrawer() {
         toast.success("Credit approved", { description: "Case handed over to Operations" });
         break;
       case "reject":
-        moveCase(c.id, TRANSITIONS.reject.stage, TRANSITIONS.reject.status, TRANSITIONS.reject.event, text);
+        moveCase(
+          c.id,
+          TRANSITIONS.reject.stage,
+          TRANSITIONS.reject.status,
+          TRANSITIONS.reject.event,
+          text,
+        );
         toast.error("Application rejected");
         break;
       case "query":
@@ -143,7 +157,12 @@ export function CaseDrawer() {
         toast.message("Query raised", { description: "Sales notified for clarification" });
         break;
       case "markReady":
-        moveCase(c.id, TRANSITIONS.markReady.stage, TRANSITIONS.markReady.status, TRANSITIONS.markReady.event);
+        moveCase(
+          c.id,
+          TRANSITIONS.markReady.stage,
+          TRANSITIONS.markReady.status,
+          TRANSITIONS.markReady.event,
+        );
         toast.success("Marked ready for disbursement");
         break;
       case "disburse":
@@ -154,7 +173,9 @@ export function CaseDrawer() {
           TRANSITIONS.disburse.event,
           `${inr(c.loanAmount)} released to ${c.terms.bankAccount}`,
         );
-        toast.success("Funds disbursed", { description: "Loan is active and in the collection cycle" });
+        toast.success("Funds disbursed", {
+          description: "Loan is active and in the collection cycle",
+        });
         break;
       case "followup":
         recordFollowUp(c.id, text, currentRole);
@@ -242,7 +263,10 @@ export function CaseDrawer() {
                 </button>
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-1.5">
-                <StatusBadge status={collection ? collection.status : c.workflowStatus} />
+                <StatusBadge
+                  status={collection ? collection.status : c.workflowStatus}
+                  urgency={collection?.urgency}
+                />
                 <PriorityBadge priority={c.priority} />
                 {c.stage === "enquiry" && <TemperatureBadge temperature={c.temperature} />}
                 {c.queryRaised && <QueryBadge />}
@@ -281,6 +305,8 @@ export function CaseDrawer() {
                 demoDate={currentDemoDate}
                 onToggleChecklist={(key) => toggleChecklist(c.id, key, currentRole)}
                 canVerify={allow("verify")}
+                onAddNote={(noteText) => addNote(c.id, noteText, currentRole)}
+                canAddNote={allow("addNote")}
               />
             </div>
 
@@ -290,6 +316,24 @@ export function CaseDrawer() {
                   {allow("convertToApplication") && (
                     <ActionButton variant="primary" size="sm" onClick={() => setModal("convert")}>
                       Convert to Application
+                    </ActionButton>
+                  )}
+                  {nextEmmsStatus(c.workflowStatus) && (
+                    <ActionButton
+                      size="sm"
+                      onClick={() => {
+                        const next = nextEmmsStatus(c.workflowStatus)!;
+                        moveCase(
+                          c.id,
+                          "enquiry",
+                          next,
+                          `Moved to ${next}`,
+                          `Pipeline stage advanced to ${next}`,
+                        );
+                        toast.success(`Moved to ${next}`);
+                      }}
+                    >
+                      Advance to {nextEmmsStatus(c.workflowStatus)}
                     </ActionButton>
                   )}
                   {allow("recordFollowUp") && (
@@ -437,7 +481,9 @@ export function CaseDrawer() {
             )}
             {modal === "assign" && (
               <label className="block">
-                <span className="mb-1 block text-xs font-medium text-muted-foreground">Officer</span>
+                <span className="mb-1 block text-xs font-medium text-muted-foreground">
+                  Officer
+                </span>
                 <select
                   value={officer}
                   onChange={(e) => setOfficer(e.target.value)}
@@ -531,12 +577,16 @@ function DrawerBody({
   demoDate,
   onToggleChecklist,
   canVerify,
+  onAddNote,
+  canAddNote,
 }: {
   c: LoanCase;
   tab: string;
   demoDate: string;
   onToggleChecklist: (key: string) => void;
   canVerify: boolean;
+  onAddNote?: ((text: string) => void) | undefined;
+  canAddNote?: boolean | undefined;
 }) {
   const collection = c.stage === "collections" ? getCollectionState(c, demoDate) : null;
 
@@ -645,6 +695,7 @@ function DrawerBody({
             </ul>
           </Block>
         )}
+        <LoanDetailsNotesSection c={c} onAddNote={onAddNote} canAddNote={canAddNote} />
       </div>
     );
 
@@ -653,7 +704,10 @@ function DrawerBody({
       <Block title="Document checklist">
         <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
           {c.documents.map((d) => (
-            <li key={d.name} className="flex items-center justify-between gap-3 bg-surface/40 px-3 py-2.5">
+            <li
+              key={d.name}
+              className="flex items-center justify-between gap-3 bg-surface/40 px-3 py-2.5"
+            >
               <span className="text-sm text-foreground">{d.name}</span>
               {d.received ? (
                 <span className="inline-flex items-center gap-1 text-xs font-semibold text-success">
@@ -753,7 +807,10 @@ function DrawerBody({
               label: "Checks complete",
               value: `${c.checklist.filter((i) => i.done).length}/${c.checklist.length}`,
             },
-            { label: "Disbursed on", value: c.disbursedDate ? longDate(c.disbursedDate) : "Pending" },
+            {
+              label: "Disbursed on",
+              value: c.disbursedDate ? longDate(c.disbursedDate) : "Pending",
+            },
           ]}
         />
       </Block>
@@ -769,7 +826,10 @@ function DrawerBody({
           ) : (
             <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
               {c.payments.map((p) => (
-                <li key={p.id} className="flex items-center justify-between bg-surface/40 px-3 py-2.5">
+                <li
+                  key={p.id}
+                  className="flex items-center justify-between bg-surface/40 px-3 py-2.5"
+                >
                   <span className="text-sm text-foreground">{longDate(p.date)}</span>
                   <span className="num text-sm font-semibold text-foreground">
                     {inr(p.amount)} · {p.mode}
@@ -850,5 +910,126 @@ function Block({
       </h3>
       {children}
     </section>
+  );
+}
+
+function LoanDetailsNotesSection({
+  c,
+  onAddNote,
+  canAddNote,
+}: {
+  c: LoanCase;
+  onAddNote?: ((text: string) => void) | undefined;
+  canAddNote?: boolean | undefined;
+}) {
+  const [inputNote, setInputNote] = useState("");
+
+  const handleAdd = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputNote.trim() || !onAddNote) return;
+    onAddNote(inputNote.trim());
+    setInputNote("");
+    toast.success("Note added to loan file");
+  };
+
+  const allRemarks = useMemo(() => {
+    const list: {
+      id: string;
+      text: string;
+      actor: string;
+      timestamp: string;
+      action: string;
+    }[] = [];
+    const seen = new Set<string>();
+
+    for (const n of c.notes) {
+      const key = `${n.timestamp}-${n.text.trim()}`;
+      seen.add(key);
+      list.push({
+        id: n.id,
+        text: n.text,
+        actor: n.actor,
+        timestamp: n.timestamp,
+        action: "Note",
+      });
+    }
+
+    for (const h of c.history) {
+      if (!h.note || !h.note.trim()) continue;
+      const key = `${h.timestamp}-${h.note.trim()}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      list.push({
+        id: h.id,
+        text: h.note,
+        actor: h.actor,
+        timestamp: h.timestamp,
+        action: h.action || "Review Remark",
+      });
+    }
+
+    return list.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+  }, [c.notes, c.history]);
+
+  return (
+    <Block title="Notes & Review Remarks" icon={<MessageSquare className="size-3.5" />}>
+      {canAddNote && (
+        <form onSubmit={handleAdd} className="mb-3 space-y-2">
+          <div className="relative">
+            <textarea
+              value={inputNote}
+              onChange={(e) => setInputNote(e.target.value)}
+              placeholder="Write a note or review remark for this loan case..."
+              rows={2}
+              className="w-full resize-none rounded-xl border border-border bg-surface/60 p-2.5 text-xs text-foreground placeholder:text-muted-foreground/70 focus:border-primary/50 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+            />
+          </div>
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={!inputNote.trim()}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground shadow-xs transition-all hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+            >
+              <Send className="size-3" />
+              Add Remark
+            </button>
+          </div>
+        </form>
+      )}
+
+      {allRemarks.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-border/70 p-4 text-center">
+          <p className="text-xs text-muted-foreground italic">
+            No notes or review remarks logged yet.
+          </p>
+        </div>
+      ) : (
+        <ul className="space-y-2">
+          {allRemarks.map((item) => (
+            <li
+              key={item.id}
+              className="rounded-xl border border-border/80 bg-surface/50 p-2.5 shadow-xs transition-all hover:bg-surface-raised"
+            >
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <div className="flex items-center gap-1.5">
+                  <span className="rounded-md bg-secondary px-1.5 py-0.5 text-[10px] font-bold text-secondary-foreground">
+                    {item.actor}
+                  </span>
+                  <span className="text-[10px] font-semibold text-muted-foreground">
+                    • {item.action}
+                  </span>
+                </div>
+                <span className="num text-[10px] font-medium text-muted-foreground/80">
+                  {item.timestamp.replace("T", " ")}
+                </span>
+              </div>
+              <p className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                {item.text}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Block>
   );
 }

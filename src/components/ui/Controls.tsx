@@ -11,9 +11,9 @@ const variantClass: Record<Variant, string> = {
     "bg-primary text-primary-foreground hover:bg-primary/90 border border-primary/40 shadow-[0_8px_24px_-14px_var(--color-primary)]",
   success: "bg-success text-success-foreground hover:bg-success/90 border border-success/40",
   secondary: "bg-secondary text-secondary-foreground hover:bg-accent border border-border",
-  ghost: "bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground border border-transparent",
-  danger:
-    "bg-destructive/12 text-destructive hover:bg-destructive/20 border border-destructive/30",
+  ghost:
+    "bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground border border-transparent",
+  danger: "bg-destructive/12 text-destructive hover:bg-destructive/20 border border-destructive/30",
 };
 
 export function ActionButton({
@@ -194,16 +194,35 @@ export function ConfirmationModal({
   children?: ReactNode | undefined;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
+  const prevOpenRef = useRef(false);
 
   useEffect(() => {
-    if (!open) return;
-    ref.current?.focus();
+    if (!open) {
+      prevOpenRef.current = false;
+      return;
+    }
+
+    if (!prevOpenRef.current) {
+      prevOpenRef.current = true;
+      // Focus first input or modal container only on initial opening
+      const input = ref.current?.querySelector<HTMLInputElement | HTMLTextAreaElement>(
+        "input:not([disabled]), textarea:not([disabled]), select:not([disabled])",
+      );
+      if (input) {
+        input.focus();
+      } else if (ref.current && !ref.current.contains(document.activeElement)) {
+        ref.current.focus();
+      }
+    }
+
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
+      if (e.key === "Escape") onCancelRef.current();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onCancel]);
+  }, [open]);
 
   if (!open) return null;
 

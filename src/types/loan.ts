@@ -163,3 +163,19 @@ export interface LoanCase {
   notes: { id: string; timestamp: string; actor: string; text: string }[];
   history: HistoryEvent[];
 }
+
+export type NotificationType =
+  "escalation" | "assignment" | "approval" | "due" | "followup" | "query" | "note" | "general";
+
+export interface AppNotification {
+  id: string;
+  caseId?: string | undefined;
+  caseName?: string | undefined;
+  title: string;
+  message: string;
+  type: NotificationType;
+  targetRoles: Role[];
+  targetOfficer?: string | undefined;
+  timestamp: string;
+  read: boolean;
+}

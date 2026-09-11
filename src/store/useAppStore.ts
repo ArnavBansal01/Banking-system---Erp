@@ -1,6 +1,13 @@
 import { create } from "zustand";
 import { dataProvider } from "@/data/dataProvider";
-import type { LoanCase, ModuleView, Role, Stage, WorkflowStatus } from "@/types/loan";
+import type {
+  AppNotification,
+  LoanCase,
+  ModuleView,
+  Role,
+  Stage,
+  WorkflowStatus,
+} from "@/types/loan";
 import { TRANSITIONS } from "@/utils/transitions";
 
 interface AppState {
@@ -16,6 +23,7 @@ interface AppState {
 
   // business state
   cases: LoanCase[];
+  notifications: AppNotification[];
 
   // UI actions
   setRole: (role: Role) => void;
@@ -26,6 +34,11 @@ interface AppState {
   setSearch: (q: string) => void;
   setFilterStatus: (v: string) => void;
   setFilterPriority: (v: string) => void;
+
+  // notification actions
+  addNotification: (n: Omit<AppNotification, "id" | "timestamp" | "read">) => void;
+  markNotificationAsRead: (id: string) => void;
+  markAllNotificationsAsRead: () => void;
 
   // case actions
   createEnquiry: (input: {
@@ -40,7 +53,13 @@ interface AppState {
     purpose: string;
     contact: string;
   }) => void;
-  moveCase: (id: string, stage: Stage, status: WorkflowStatus, event: string, note?: string) => void;
+  moveCase: (
+    id: string,
+    stage: Stage,
+    status: WorkflowStatus,
+    event: string,
+    note?: string,
+  ) => void;
   recordFollowUp: (id: string, note: string, actor: string) => void;
   recordVisit: (id: string, note: string, actor: string) => void;
   recordPayment: (id: string, amount: number, mode: string, actor: string) => void;
@@ -60,6 +79,44 @@ function stamp(demoDate: string): string {
   const now = new Date();
   return `${demoDate}T${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 }
+
+const INITIAL_NOTIFICATIONS: AppNotification[] = [
+  {
+    id: "notif-1",
+    caseId: "CASE-001",
+    caseName: "Arvind Agritech Pvt. Ltd.",
+    title: "High-Priority Enquiry",
+    message: "Hot lead enquiry assigned to Arnav. Scheduled follow-up pending.",
+    type: "followup",
+    targetRoles: ["Officer", "Branch Manager"],
+    targetOfficer: "Arnav",
+    timestamp: "2026-09-02T09:30",
+    read: false,
+  },
+  {
+    id: "notif-2",
+    caseId: "CASE-005",
+    caseName: "Malhotra Infotech",
+    title: "CIBIL Policy Deviation",
+    message: "Application requires deviation approval (CIBIL score below cutoff).",
+    type: "approval",
+    targetRoles: ["Regional Manager", "MD"],
+    timestamp: "2026-09-01T14:15",
+    read: false,
+  },
+  {
+    id: "notif-3",
+    caseId: "CASE-011",
+    caseName: "Komal Textiles",
+    title: "EMI Payment Due Window Open",
+    message: "EMI cycle Sept 1 - Sept 5 is active. Repayment due from borrower.",
+    type: "due",
+    targetRoles: ["Officer", "Branch Manager"],
+    targetOfficer: "Arnav",
+    timestamp: "2026-09-02T08:00",
+    read: false,
+  },
+];
 
 export const useAppStore = create<AppState>((set, get) => {
   const patch = (
@@ -99,6 +156,7 @@ export const useAppStore = create<AppState>((set, get) => {
     filterPriority: "all",
 
     cases: dataProvider.getCases(),
+    notifications: INITIAL_NOTIFICATIONS,
 
     setRole: (currentRole) => set({ currentRole, selectedCaseId: null }),
     setView: (currentView) =>
@@ -109,6 +167,24 @@ export const useAppStore = create<AppState>((set, get) => {
     setSearch: (search) => set({ search }),
     setFilterStatus: (filterStatus) => set({ filterStatus }),
     setFilterPriority: (filterPriority) => set({ filterPriority }),
+
+    addNotification: (n) => {
+      const notif: AppNotification = {
+        ...n,
+        id: uid("notif"),
+        timestamp: stamp(get().currentDemoDate),
+        read: false,
+      };
+      set((state) => ({ notifications: [notif, ...state.notifications] }));
+    },
+    markNotificationAsRead: (id) =>
+      set((state) => ({
+        notifications: state.notifications.map((n) => (n.id === id ? { ...n, read: true } : n)),
+      })),
+    markAllNotificationsAsRead: () =>
+      set((state) => ({
+        notifications: state.notifications.map((n) => ({ ...n, read: true })),
+      })),
 
     createEnquiry: (input) => {
       const template = get().cases[0]!;
@@ -156,7 +232,8 @@ export const useAppStore = create<AppState>((set, get) => {
       set((state) => ({ cases: [fresh, ...state.cases], selectedCaseId: id }));
     },
 
-    moveCase: (id, stage, status, event, note) =>
+    moveCase: (id, stage, status, event, note) => {
+      const c = get().cases.find((x) => x.id === id);
       patch(
         id,
         (c) => ({
@@ -173,7 +250,40 @@ export const useAppStore = create<AppState>((set, get) => {
           collectionQueue: stage === "collections" ? "followup" : c.collectionQueue,
         }),
         { action: event, actor: get().currentRole, note },
-      ),
+      );
+
+      // Trigger targeted notifications on major milestones
+      if (event === TRANSITIONS.approve.event) {
+        get().addNotification({
+          caseId: id,
+          caseName: c?.clientName,
+          title: "Loan Approved",
+          message: `Loan for ${c?.clientName ?? id} approved by ${get().currentRole}. Handed over to Operations.`,
+          type: "approval",
+          targetRoles: ["Regional Manager", "MD", "Officer"],
+          targetOfficer: c?.assignedOfficer,
+        });
+      } else if (event === TRANSITIONS.disburse.event) {
+        get().addNotification({
+          caseId: id,
+          caseName: c?.clientName,
+          title: "Funds Disbursed",
+          message: `Disbursement completed for ${c?.clientName ?? id}. Repayment schedule is now active.`,
+          type: "general",
+          targetRoles: ["Branch Manager", "Regional Manager", "Officer"],
+          targetOfficer: c?.assignedOfficer,
+        });
+      } else if (event === TRANSITIONS.convertToApplication.event) {
+        get().addNotification({
+          caseId: id,
+          caseName: c?.clientName,
+          title: "Application Submitted to Credit",
+          message: `${c?.clientName ?? id} converted to application. Review queue ready.`,
+          type: "general",
+          targetRoles: ["Branch Manager", "Regional Manager"],
+        });
+      }
+    },
 
     recordFollowUp: (id, note, actor) =>
       patch(
@@ -226,7 +336,8 @@ export const useAppStore = create<AppState>((set, get) => {
         note: date,
       }),
 
-    escalateCase: (id, reason, actor) =>
+    escalateCase: (id, reason, actor) => {
+      const c = get().cases.find((x) => x.id === id);
       patch(
         id,
         (c) => ({
@@ -236,9 +347,19 @@ export const useAppStore = create<AppState>((set, get) => {
           priority: "Critical",
         }),
         { action: "Case escalated", actor, note: reason },
-      ),
+      );
+      get().addNotification({
+        caseId: id,
+        caseName: c?.clientName,
+        title: "Case Escalated",
+        message: `${actor} escalated ${c?.clientName ?? id}: "${reason || "Immediate executive intervention required"}"`,
+        type: "escalation",
+        targetRoles: ["Branch Manager", "Regional Manager", "MD"],
+      });
+    },
 
-    resolveCase: (id, note, actor) =>
+    resolveCase: (id, note, actor) => {
+      const c = get().cases.find((x) => x.id === id);
       patch(
         id,
         (c) => ({
@@ -248,31 +369,66 @@ export const useAppStore = create<AppState>((set, get) => {
           collectionQueue: "none",
         }),
         { action: "Case resolved", actor, note },
-      ),
+      );
+      get().addNotification({
+        caseId: id,
+        caseName: c?.clientName,
+        title: "Case Resolved",
+        message: `Delinquency/escalation on ${c?.clientName ?? id} marked resolved by ${actor}.`,
+        type: "general",
+        targetRoles: ["Officer", "Branch Manager", "Regional Manager"],
+        targetOfficer: c?.assignedOfficer,
+      });
+    },
 
-    assignCase: (id, officer, actor) =>
+    assignCase: (id, officer, actor) => {
+      const c = get().cases.find((x) => x.id === id);
       patch(id, (c) => ({ ...c, assignedOfficer: officer }), {
         action: "Case assigned",
         actor,
         note: `Owner set to ${officer}`,
-      }),
+      });
+      get().addNotification({
+        caseId: id,
+        caseName: c?.clientName,
+        title: "Case Assigned to You",
+        message: `Case ${c?.clientName ?? id} assigned to ${officer} by ${actor}.`,
+        type: "assignment",
+        targetRoles: ["Officer", "Branch Manager"],
+        targetOfficer: officer,
+      });
+    },
 
     addNote: (id, text, actor) =>
       patch(
         id,
         (c) => ({
           ...c,
-          notes: [...c.notes, { id: uid("n"), timestamp: stamp(get().currentDemoDate), actor, text }],
+          notes: [
+            { id: uid("n"), timestamp: stamp(get().currentDemoDate), actor, text },
+            ...c.notes,
+          ],
         }),
         { action: "Note added", actor, note: text },
       ),
 
-    raiseQuery: (id, question, actor) =>
+    raiseQuery: (id, question, actor) => {
+      const c = get().cases.find((x) => x.id === id);
       patch(id, (c) => ({ ...c, queryRaised: true, workflowStatus: "In Review" }), {
         action: "Query raised",
         actor,
         note: question,
-      }),
+      });
+      get().addNotification({
+        caseId: id,
+        caseName: c?.clientName,
+        title: "Query Raised",
+        message: `${actor} raised query on ${c?.clientName ?? id}: "${question}"`,
+        type: "query",
+        targetRoles: ["Officer", "Branch Manager"],
+        targetOfficer: c?.assignedOfficer,
+      });
+    },
 
     toggleChecklist: (id, key, actor) =>
       patch(

@@ -1,12 +1,5 @@
 import * as React from "react";
-import {
-  Crown,
-  Building2,
-  Landmark,
-  UserCheck,
-  ChevronDown,
-  Check,
-} from "lucide-react";
+import { Crown, Building2, Landmark, UserCheck, ChevronDown, Check } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { DEMO_ROLES, getScope } from "@/utils/scope";
 import type { Role } from "@/types/loan";
@@ -154,7 +147,9 @@ export function UserRoleMenu() {
                   <RoleIcon
                     className={cn(
                       "size-4 shrink-0 transition-transform duration-200 group-hover:scale-110",
-                      isSelected ? "text-primary" : "text-muted-foreground group-hover:text-foreground",
+                      isSelected
+                        ? "text-primary"
+                        : "text-muted-foreground group-hover:text-foreground",
                     )}
                   />
                   <span className="truncate">{role}</span>

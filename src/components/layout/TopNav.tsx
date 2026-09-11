@@ -16,8 +16,7 @@ const NAV: { view: ModuleView; label: string }[] = [
 ];
 
 export function TopNav() {
-  const { currentView, setView, currentDemoDate, setDemoDate } =
-    useAppStore();
+  const { currentView, setView, currentDemoDate, setDemoDate } = useAppStore();
 
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-xl">
@@ -29,7 +28,10 @@ export function TopNav() {
           <span className="text-sm font-extrabold tracking-tight text-foreground">NBFC ERP</span>
         </div>
 
-        <nav aria-label="Modules" className="order-3 flex w-full gap-1 overflow-x-auto lg:order-none lg:w-auto">
+        <nav
+          aria-label="Modules"
+          className="order-3 flex w-full gap-1 overflow-x-auto lg:order-none lg:w-auto"
+        >
           {NAV.map((item) => (
             <button
               key={item.view}

@@ -85,7 +85,11 @@ export function EmmsModule() {
         crumbs={scope.crumbs}
         actions={
           can(currentRole, "createEnquiry") ? (
-            <ActionButton variant="primary" icon={<Plus className="size-4" />} onClick={() => setFormOpen(true)}>
+            <ActionButton
+              variant="primary"
+              icon={<Plus className="size-4" />}
+              onClick={() => setFormOpen(true)}
+            >
               New Enquiry
             </ActionButton>
           ) : undefined
@@ -93,7 +97,12 @@ export function EmmsModule() {
       />
 
       <KPIGroup>
-        <KPI label="Total enquiries" value={enquiries.length} icon={<Users className="size-3.5" />} support="In my scope" />
+        <KPI
+          label="Total enquiries"
+          value={enquiries.length}
+          icon={<Users className="size-3.5" />}
+          support="In my scope"
+        />
         <KPI
           label="Hot leads"
           value={enquiries.filter((c) => c.temperature === "Hot").length}
@@ -157,9 +166,15 @@ export function EmmsModule() {
               emptyLabel="No enquiries here"
             >
               {list.map((c) => (
-                <KanbanCard key={c.id} onClick={() => selectCase(c.id)} accent={c.temperature === "Hot" ? "danger" : "info"}>
+                <KanbanCard
+                  key={c.id}
+                  onClick={() => selectCase(c.id)}
+                  accent={c.temperature === "Hot" ? "danger" : "info"}
+                >
                   <CardRow>
-                    <span className="truncate text-sm font-semibold text-foreground">{c.clientName}</span>
+                    <span className="truncate text-sm font-semibold text-foreground">
+                      {c.clientName}
+                    </span>
                     <TemperatureBadge temperature={c.temperature} />
                   </CardRow>
                   <p className="num mt-1 text-xs text-muted-foreground">
@@ -190,7 +205,13 @@ export function EmmsModule() {
               accent: "warning" as const,
             }))}
             onSelect={selectCase}
-            empty={<EmptyState compact title="Follow-up discipline is clean" hint="Nothing pending on this date" />}
+            empty={
+              <EmptyState
+                compact
+                title="Follow-up discipline is clean"
+                hint="Nothing pending on this date"
+              />
+            }
           />
         </GlassPanel>
         <GlassPanel>
@@ -200,7 +221,9 @@ export function EmmsModule() {
               id: c.id,
               primary: c.clientName,
               secondary: `${c.workflowStatus} · ${c.assignedOfficer}`,
-              meta: <span className="num text-xs text-muted-foreground">{inr(c.loanAmount, true)}</span>,
+              meta: (
+                <span className="num text-xs text-muted-foreground">{inr(c.loanAmount, true)}</span>
+              ),
               accent: "info" as const,
             }))}
             onSelect={selectCase}
@@ -218,9 +241,24 @@ export function EmmsModule() {
         onConfirm={submit}
       >
         <div className="mt-4 space-y-3">
-          <TextField label="Customer / entity name" value={name} onChange={setName} placeholder="e.g. Shree Traders" />
-          <TextField label="Loan amount (₹)" value={amount} onChange={setAmount} placeholder="2500000" />
-          <TextField label="Contact number" value={contact} onChange={setContact} placeholder="+91 98765 43210" />
+          <TextField
+            label="Customer / entity name"
+            value={name}
+            onChange={setName}
+            placeholder="e.g. Shree Traders"
+          />
+          <TextField
+            label="Loan amount (₹)"
+            value={amount}
+            onChange={setAmount}
+            placeholder="2500000"
+          />
+          <TextField
+            label="Contact number"
+            value={contact}
+            onChange={setContact}
+            placeholder="+91 98765 43210"
+          />
           <TextField label="Purpose" value={purpose} onChange={setPurpose} />
           <SelectField
             label="Temperature"
