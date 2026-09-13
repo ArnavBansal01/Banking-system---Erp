@@ -18,7 +18,7 @@ const DIM_LABEL: Record<string, string> = {
 };
 
 export function ManagementModule() {
-  const { currentRole, currentDemoDate, selectCase } = useAppStore();
+  const { currentRole, currentDemoDate, selectCase, setView } = useAppStore();
   const visible = useVisibleCases();
   const scope = getScope(currentRole);
   const metrics = computeMetrics(visible, currentDemoDate);
@@ -43,33 +43,43 @@ export function ManagementModule() {
           label="Portfolio value"
           value={inr(metrics.totalLoanValue, true)}
           icon={<Layers className="size-3.5" />}
-          support={`${metrics.totalCases} cases`}
+          support={`${metrics.totalCases} cases under management`}
         />
         <KPI
           label="Disbursed"
           value={inr(metrics.totalDisbursed, true)}
           status="success"
           icon={<Banknote className="size-3.5" />}
-          support={`${metrics.activeLoans} active loans`}
+          support={`${metrics.activeLoans} active loans disbursed`}
         />
         <KPI
           label="Conversion"
           value={`${metrics.conversionRate.toFixed(0)}%`}
           status="info"
           icon={<Activity className="size-3.5" />}
-          support={`${metrics.enquiries} open enquiries`}
+          support={`${metrics.enquiries} total enquiries`}
         />
         <KPI
           label="Overdue"
           value={buckets.overdue.length}
           status="danger"
-          support={`${inr(metrics.overdueAmount, true)} at risk`}
+          support={`${inr(metrics.overdueAmount, true)} at risk · View in Collections`}
+          clickHint="View"
+          onClick={() => {
+            setView("Collections");
+            toast.info("Navigated to Collections overdue ledger");
+          }}
         />
         <KPI
           label="Escalations"
           value={buckets.escalated.length}
           status="warning"
-          support="Needing authority"
+          support="Needing authority · View in Collections"
+          clickHint="View"
+          onClick={() => {
+            setView("Collections");
+            toast.info("Navigated to Collections escalations queue");
+          }}
         />
         <KPI
           label="Avg rate"

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   AlertTriangle,
   Banknote,
@@ -31,15 +32,21 @@ export function OperationsModule() {
     filterPriority,
     setFilterPriority,
     selectCase,
+    setView,
+    setDrawerTab,
   } = useAppStore();
   const visible = useVisibleCases();
   const scope = getScope(currentRole);
   const metrics = computeMetrics(visible, currentDemoDate);
   const canViewSla = can(currentRole, "viewSlaAttention");
 
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+
   const ops = visible
     .filter((c) => c.stage === "disbursement")
     .filter((c) => canViewSla || c.workflowStatus !== "SLA Attention");
+
+  const displayOps = ops.filter((c) => !statusFilter || c.workflowStatus === statusFilter);
 
   const activeLoans = visible.filter((c) => c.stage === "collections");
   const pendingDocs = ops.filter(
@@ -62,21 +69,70 @@ export function OperationsModule() {
           label="Files received"
           value={ops.length}
           icon={<FileCheck className="size-3.5" />}
-          support="From credit"
+          support={statusFilter ? `Filtered: ${statusFilter} · Click to reset` : "From credit"}
+          isActive={statusFilter === null}
+          clickHint="All"
+          onClick={() => {
+            setStatusFilter(null);
+            setSearch("");
+            setFilterPriority("all");
+            toast.info("Showing all operations files");
+          }}
         />
         <KPI
           label="In verification"
           value={metrics.opsProcessing}
           status="warning"
           icon={<ListChecks className="size-3.5" />}
-          support="Checklist open"
+          support={
+            statusFilter === "Verification"
+              ? "Filter active · Click to clear"
+              : "Checklist open · Click to view"
+          }
+          isActive={statusFilter === "Verification"}
+          clickHint="Filter"
+          onClick={() => {
+            const next = statusFilter === "Verification" ? null : "Verification";
+            setStatusFilter(next);
+            if (next) {
+              const target = ops.find((c) => c.workflowStatus === "Verification");
+              if (target) {
+                selectCase(target.id);
+                setDrawerTab("Checklist");
+                toast.info(`Viewing checklist for ${target.clientName}`);
+              }
+            } else {
+              toast.info("Showing all operations files");
+            }
+          }}
         />
         <KPI
           label="Ready to disburse"
           value={metrics.opsReady}
           status="success"
           icon={<CheckCircle2 className="size-3.5" />}
-          support="Cleared checks"
+          support={
+            statusFilter === "Ready for Disbursement"
+              ? "Filter active · Click to clear"
+              : "Cleared checks · Click to view"
+          }
+          isActive={statusFilter === "Ready for Disbursement"}
+          clickHint="View"
+          onClick={() => {
+            const next =
+              statusFilter === "Ready for Disbursement" ? null : "Ready for Disbursement";
+            setStatusFilter(next);
+            if (next) {
+              const target = ops.find((c) => c.workflowStatus === "Ready for Disbursement");
+              if (target) {
+                selectCase(target.id);
+                setDrawerTab("Overview");
+                toast.success(`Viewing ready to disburse file: ${target.clientName}`);
+              }
+            } else {
+              toast.info("Showing all operations files");
+            }
+          }}
         />
         {canViewSla && (
           <KPI
@@ -84,29 +140,41 @@ export function OperationsModule() {
             value={slaCases.length}
             status={slaCases.length > 0 ? "danger" : "neutral"}
             icon={<AlertTriangle className="size-3.5" />}
-            support="Overdue >15 days"
+            support="Overdue >15 days · Click to view"
+            isActive={statusFilter === "SLA Attention"}
+            clickHint="View"
+            onClick={() => {
+              if (slaCases[0]) {
+                selectCase(slaCases[0].id);
+                setDrawerTab("Checklist");
+                toast.error(`Viewing SLA attention file: ${slaCases[0].clientName}`);
+              } else {
+                toast.info("No SLA attention files");
+              }
+            }}
           />
         )}
         <KPI
           label="Disbursed value"
           value={inr(metrics.totalDisbursed, true)}
           icon={<Banknote className="size-3.5" />}
-          support="Cumulative"
+          support="Cumulative volume released"
         />
         <KPI
           label="Active loans"
           value={activeLoans.length}
           status="info"
           icon={<Landmark className="size-3.5" />}
-          support="In repayment"
+          support="Active repayment portfolio"
         />
       </KPIGroup>
 
       <FilterBar
-        active={search !== "" || filterPriority !== "all"}
+        active={search !== "" || filterPriority !== "all" || statusFilter !== null}
         onReset={() => {
           setSearch("");
           setFilterPriority("all");
+          setStatusFilter(null);
         }}
       >
         <SearchBar value={search} onChange={setSearch} />
@@ -126,7 +194,7 @@ export function OperationsModule() {
 
       <KanbanBoard>
         {availableColumns.map((col) => {
-          const list = ops.filter((c) => c.workflowStatus === col);
+          const list = displayOps.filter((c) => c.workflowStatus === col);
           const isSlaCol = col === "SLA Attention";
           return (
             <KanbanColumn

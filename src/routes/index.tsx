@@ -1,5 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
+import { LoginPage } from "@/modules/auth/LoginPage";
+import { useAppStore } from "@/store/useAppStore";
 
 const title = "NBFC Loan ERP — Origination, Operations & Collections";
 const description =
@@ -18,5 +21,24 @@ export const Route = createFileRoute("/")({
 });
 
 function Index() {
+  const isAuthenticated = useAppStore((s) => s.isAuthenticated);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginPage />;
+  }
+
   return <AppShell />;
 }

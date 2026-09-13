@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type KpiStatus = "neutral" | "success" | "warning" | "danger" | "info";
@@ -26,6 +27,8 @@ export function KPI({
   icon,
   status = "neutral",
   onClick,
+  isActive = false,
+  clickHint = "Filter",
 }: {
   label: string;
   value: ReactNode;
@@ -33,28 +36,68 @@ export function KPI({
   icon?: ReactNode | undefined;
   status?: KpiStatus | undefined;
   onClick?: (() => void) | undefined;
+  isActive?: boolean | undefined;
+  clickHint?: string | undefined;
 }) {
-  const Comp = onClick ? "button" : "div";
+  const isClickable = Boolean(onClick);
+  const Comp = isClickable ? "button" : "div";
+
   return (
     <Comp
-      {...(onClick ? { onClick, type: "button" as const } : {})}
+      {...(isClickable ? { onClick, type: "button" as const } : {})}
       className={cn(
-        "group flex w-full flex-col gap-2 rounded-xl border border-border bg-card/70 p-3.5 text-left backdrop-blur-md transition-all duration-200",
-        onClick && "hover:border-border-strong hover:bg-card",
+        "group relative flex w-full flex-col gap-2 rounded-xl border p-3.5 text-left transition-all duration-200 select-none",
+        isClickable
+          ? "cursor-pointer border-border/90 bg-card/85 shadow-2xs hover:border-primary/60 hover:bg-surface-raised hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          : "cursor-default border-border/50 bg-card/45 opacity-95",
+        isActive && "border-primary bg-primary/10 ring-1 ring-primary/40 shadow-sm",
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-          {label}
-        </span>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <span
+            className={cn(
+              "text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors",
+              isActive
+                ? "text-primary font-bold"
+                : isClickable
+                  ? "text-muted-foreground group-hover:text-foreground"
+                  : "text-muted-foreground",
+            )}
+          >
+            {label}
+          </span>
+          {isClickable && (
+            <span
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold tracking-wide transition-all",
+                isActive
+                  ? "bg-primary text-primary-foreground shadow-2xs font-bold"
+                  : "bg-primary/10 text-primary border border-primary/20 group-hover:bg-primary group-hover:text-primary-foreground group-hover:border-primary",
+              )}
+            >
+              <span>{isActive ? "Filtered" : clickHint}</span>
+              <ArrowUpRight className="size-2.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+            </span>
+          )}
+        </div>
+
         {icon && (
-          <span className={cn("grid size-7 place-items-center rounded-lg", iconTone[status])}>
+          <span
+            className={cn(
+              "grid size-7 place-items-center rounded-lg shrink-0 transition-transform duration-200",
+              iconTone[status],
+              isClickable && "group-hover:scale-105",
+            )}
+          >
             {icon}
           </span>
         )}
       </div>
+
       <span className={cn("num text-2xl font-bold leading-none", valueTone[status])}>{value}</span>
-      {support && <span className="text-xs text-muted-foreground">{support}</span>}
+
+      {support && <span className="text-xs text-muted-foreground leading-tight">{support}</span>}
     </Comp>
   );
 }

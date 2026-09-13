@@ -12,7 +12,110 @@ import type {
 } from "@/types/loan";
 import { TRANSITIONS } from "@/utils/transitions";
 
+export interface UserProfile {
+  name: string;
+  email: string;
+  role: Role;
+  designation: string;
+  department: string;
+  scopeLabel: string;
+  avatarInitials: string;
+}
+
+export const ROLE_PROFILES: Record<Role, UserProfile> = {
+  MD: {
+    name: "Vikramaditya Singhania",
+    email: "v.singhania@nbfc-finance.in",
+    role: "MD",
+    designation: "Managing Director & CEO",
+    department: "Executive Committee",
+    scopeLabel: "Pan-India Enterprise",
+    avatarInitials: "VS",
+  },
+  "Business Head": {
+    name: "Aakash Mehra",
+    email: "a.mehra@nbfc-finance.in",
+    role: "Business Head",
+    designation: "Head of Retail Lending",
+    department: "Business Growth & Alliances",
+    scopeLabel: "Enterprise Business",
+    avatarInitials: "AM",
+  },
+  "Regional Manager": {
+    name: "Rajeshwar Sharma",
+    email: "r.sharma@nbfc-finance.in",
+    role: "Regional Manager",
+    designation: "Regional Credit Head",
+    department: "Northern Zonal Office",
+    scopeLabel: "North Region",
+    avatarInitials: "RS",
+  },
+  "Area Manager": {
+    name: "Pooja Malhotra",
+    email: "p.malhotra@nbfc-finance.in",
+    role: "Area Manager",
+    designation: "Area Operations Lead",
+    department: "Punjab Circle",
+    scopeLabel: "Punjab Area",
+    avatarInitials: "PM",
+  },
+  "Branch Manager": {
+    name: "Sunita Verma",
+    email: "s.verma@nbfc-finance.in",
+    role: "Branch Manager",
+    designation: "Branch Manager & Approver",
+    department: "Chandigarh Hub",
+    scopeLabel: "Chandigarh Branch",
+    avatarInitials: "SV",
+  },
+  "General Manager": {
+    name: "Deepak Chawla",
+    email: "d.chawla@nbfc-finance.in",
+    role: "General Manager",
+    designation: "General Manager — Operations",
+    department: "Central Operations",
+    scopeLabel: "Pan-India Ops",
+    avatarInitials: "DC",
+  },
+  Officer: {
+    name: "Arnav Bansal",
+    email: "arnav.bansal@nbfc-finance.in",
+    role: "Officer",
+    designation: "Senior Credit & Field Officer",
+    department: "Retail Origination & Collections",
+    scopeLabel: "Assigned Portfolio (Chandigarh)",
+    avatarInitials: "AB",
+  },
+};
+
+export const ROLE_DEFAULT_VIEWS: Record<Role, ModuleView> = {
+  MD: "Management",
+  "Business Head": "Management",
+  "Regional Manager": "Management",
+  "Area Manager": "Management",
+  "Branch Manager": "Credit",
+  "General Manager": "AMS",
+  Officer: "EMMS",
+};
+
+export function getUserProfileForRole(role: Role): UserProfile {
+  if (ROLE_PROFILES[role]) return ROLE_PROFILES[role];
+  return {
+    name: `${role} User`,
+    email: `${role.toLowerCase().replace(/\s+/g, ".")}@nbfc-finance.in`,
+    role,
+    designation: role,
+    department: "NBFC Lending Operations",
+    scopeLabel: "Designated Scope",
+    avatarInitials: role.slice(0, 2).toUpperCase(),
+  };
+}
+
 interface AppState {
+  // Auth state
+  isAuthenticated: boolean;
+  currentUser: UserProfile | null;
+
   // UI state
   currentRole: Role;
   currentView: ModuleView;
@@ -26,6 +129,10 @@ interface AppState {
   // business state
   cases: LoanCase[];
   notifications: AppNotification[];
+
+  // Auth actions
+  login: (role: Role) => void;
+  logout: () => void;
 
   // UI actions
   setRole: (role: Role) => void;
@@ -167,6 +274,9 @@ export const useAppStore = create<AppState>()(
         }));
 
       return {
+        isAuthenticated: false,
+        currentUser: null,
+
         currentRole: "Officer",
         currentView: "EMMS",
         currentDemoDate: dataProvider.getInitialDemoDate(),
@@ -179,19 +289,41 @@ export const useAppStore = create<AppState>()(
         cases: dataProvider.getCases(),
         notifications: INITIAL_NOTIFICATIONS,
 
-        resetData: () =>
+        login: (role: Role) => {
+          const profile = getUserProfileForRole(role);
+          const defaultView = ROLE_DEFAULT_VIEWS[role] ?? "EMMS";
           set({
+            isAuthenticated: true,
+            currentUser: profile,
+            currentRole: role,
+            currentView: defaultView,
+            selectedCaseId: null,
+            search: "",
+            filterStatus: "all",
+          });
+        },
+
+        logout: () => {
+          set({
+            isAuthenticated: false,
+            currentUser: null,
+            selectedCaseId: null,
+          });
+        },
+
+        resetData: () =>
+          set((state) => ({
             cases: dataProvider.reset(),
             notifications: INITIAL_NOTIFICATIONS,
-            currentRole: "Officer",
-            currentView: "EMMS",
             currentDemoDate: dataProvider.getInitialDemoDate(),
             selectedCaseId: null,
             activeDrawerTab: "Overview",
             search: "",
             filterStatus: "all",
             filterPriority: "all",
-          }),
+            isAuthenticated: state.isAuthenticated,
+            currentUser: state.currentUser,
+          })),
 
         setRole: (currentRole) => set({ currentRole, selectedCaseId: null }),
         setView: (currentView) =>
@@ -654,6 +786,8 @@ export const useAppStore = create<AppState>()(
         typeof window !== "undefined" ? window.localStorage : dummyStorage,
       ),
       partialize: (state) => ({
+        isAuthenticated: state.isAuthenticated,
+        currentUser: state.currentUser,
         cases: state.cases,
         notifications: state.notifications,
         currentRole: state.currentRole,

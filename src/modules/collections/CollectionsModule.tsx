@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AlertOctagon, CalendarClock, CheckCircle2, IndianRupee, TrendingDown } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import { useVisibleCases } from "@/modules/useVisibleCases";
@@ -30,13 +31,16 @@ export function CollectionsModule() {
     filterPriority,
     setFilterPriority,
     selectCase,
+    setDrawerTab,
   } = useAppStore();
   const visible = useVisibleCases();
   const scope = getScope(currentRole);
   const buckets = collectionBuckets(visible, currentDemoDate);
   const active = visible.filter((c) => c.stage === "collections");
 
-  const columns: {
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+
+  const rawColumns: {
     key: string;
     title: string;
     list: LoanCase[];
@@ -47,12 +51,14 @@ export function CollectionsModule() {
     { key: "escalated", title: "Escalated", list: buckets.escalated, accent: "danger" },
   ];
   if (buckets.resolved.length > 0)
-    columns.push({
+    rawColumns.push({
       key: "resolved",
       title: "Resolved this cycle",
       list: buckets.resolved,
       accent: "success",
     });
+
+  const columns = rawColumns.filter((col) => !statusFilter || col.key === statusFilter);
 
   const overdueAmount = buckets.overdue.reduce((a, c) => a + c.emiAmount, 0);
   const collected = active.reduce(
@@ -77,43 +83,111 @@ export function CollectionsModule() {
           label="Active loans"
           value={active.length}
           icon={<IndianRupee className="size-3.5" />}
-          support="In repayment cycle"
+          support={
+            statusFilter ? `Filtered: ${statusFilter} · Click to reset` : "In repayment cycle"
+          }
+          isActive={statusFilter === null}
+          clickHint="All"
+          onClick={() => {
+            setStatusFilter(null);
+            setSearch("");
+            setFilterPriority("all");
+            toast.info("Showing all active loans in repayment");
+          }}
         />
         <KPI
           label="Due now"
           value={buckets.due.length}
           status="warning"
           icon={<CalendarClock className="size-3.5" />}
-          support="Inside due window"
+          support={
+            statusFilter === "due"
+              ? "Filter active · Click to clear"
+              : "Inside due window · Click to view"
+          }
+          isActive={statusFilter === "due"}
+          clickHint="View"
+          onClick={() => {
+            const next = statusFilter === "due" ? null : "due";
+            setStatusFilter(next);
+            if (next) {
+              if (buckets.due[0]) {
+                selectCase(buckets.due[0].id);
+                setDrawerTab("Overview");
+                toast.warning(`Viewing case due now: ${buckets.due[0].clientName}`);
+              }
+            } else {
+              toast.info("Showing all collection columns");
+            }
+          }}
         />
         <KPI
           label="Overdue"
           value={buckets.overdue.length}
           status="danger"
           icon={<TrendingDown className="size-3.5" />}
-          support={`${inr(overdueAmount, true)} at risk`}
+          support={
+            statusFilter === "overdue"
+              ? "Filter active · Click to clear"
+              : `${inr(overdueAmount, true)} at risk · Click to view`
+          }
+          isActive={statusFilter === "overdue"}
+          clickHint="View"
+          onClick={() => {
+            const next = statusFilter === "overdue" ? null : "overdue";
+            setStatusFilter(next);
+            if (next) {
+              if (buckets.overdue[0]) {
+                selectCase(buckets.overdue[0].id);
+                setDrawerTab("Overview");
+                toast.error(`Viewing overdue case: ${buckets.overdue[0].clientName}`);
+              }
+            } else {
+              toast.info("Showing all collection columns");
+            }
+          }}
         />
         <KPI
           label="Escalated"
           value={buckets.escalated.length}
           status="danger"
           icon={<AlertOctagon className="size-3.5" />}
-          support="With higher authority"
+          support={
+            statusFilter === "escalated"
+              ? "Filter active · Click to clear"
+              : "With higher authority · Click to view"
+          }
+          isActive={statusFilter === "escalated"}
+          clickHint="View"
+          onClick={() => {
+            const next = statusFilter === "escalated" ? null : "escalated";
+            setStatusFilter(next);
+            if (next) {
+              if (buckets.escalated[0]) {
+                selectCase(buckets.escalated[0].id);
+                setDrawerTab("Overview");
+                toast.error(`Viewing escalated case: ${buckets.escalated[0].clientName}`);
+              }
+            } else {
+              toast.info("Showing all collection columns");
+            }
+          }}
         />
         <KPI
           label="Collected this month"
           value={inr(collected, true)}
           status="success"
           icon={<CheckCircle2 className="size-3.5" />}
-          support={`${buckets.resolved.length} resolved`}
+          support={`${buckets.resolved.length} resolved this cycle`}
         />
       </KPIGroup>
 
       <FilterBar
-        active={search !== "" || filterPriority !== "all"}
+        active={search !== "" || filterPriority !== "all" || statusFilter !== null}
         onReset={() => {
           setSearch("");
           setFilterPriority("all");
+          setStatusFilter(null);
         }}
       >
         <SearchBar value={search} onChange={setSearch} />

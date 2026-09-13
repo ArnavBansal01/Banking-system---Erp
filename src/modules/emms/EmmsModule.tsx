@@ -34,11 +34,17 @@ export function EmmsModule() {
     setFilterPriority,
     selectCase,
     createEnquiry,
+    setView,
+    setDrawerTab,
   } = useAppStore();
   const visible = useVisibleCases();
   const scope = getScope(currentRole);
   const metrics = computeMetrics(visible, currentDemoDate);
-  const enquiries = visible.filter((c) => c.stage === "enquiry");
+  const [filterTemp, setFilterTemp] = useState<"Hot" | "Warm" | "Cold" | null>(null);
+
+  const allEnquiries = visible.filter((c) => c.stage === "enquiry");
+  const enquiries = allEnquiries.filter((c) => !filterTemp || c.temperature === filterTemp);
+  const hotLeads = allEnquiries.filter((c) => c.temperature === "Hot");
 
   const [formOpen, setFormOpen] = useState(false);
   const [name, setName] = useState("");
@@ -72,10 +78,10 @@ export function EmmsModule() {
     setContact("");
   };
 
-  const followUpsDue = enquiries.filter(
+  const followUpsDue = allEnquiries.filter(
     (c) => c.nextFollowUp !== null && c.nextFollowUp <= currentDemoDate,
   );
-  const noFollowUp = enquiries.filter((c) => c.nextFollowUp === null);
+  const noFollowUp = allEnquiries.filter((c) => c.nextFollowUp === null);
 
   return (
     <div className="space-y-5">
@@ -99,23 +105,60 @@ export function EmmsModule() {
       <KPIGroup>
         <KPI
           label="Total enquiries"
-          value={enquiries.length}
+          value={allEnquiries.length}
           icon={<Users className="size-3.5" />}
-          support="In my scope"
+          support={filterTemp ? `Filter: ${filterTemp} (click to clear)` : "In my scope"}
+          isActive={filterTemp === null}
+          clickHint="All"
+          onClick={() => {
+            setFilterTemp(null);
+            setSearch("");
+            setFilterPriority("all");
+            toast.info("Showing all enquiries");
+          }}
         />
         <KPI
           label="Hot leads"
-          value={enquiries.filter((c) => c.temperature === "Hot").length}
+          value={hotLeads.length}
           status="danger"
           icon={<Flame className="size-3.5" />}
-          support="Highest intent"
+          support={
+            filterTemp === "Hot"
+              ? "Active filter (click to clear)"
+              : "Highest intent · Click to filter"
+          }
+          isActive={filterTemp === "Hot"}
+          clickHint="Filter"
+          onClick={() => {
+            if (filterTemp === "Hot") {
+              setFilterTemp(null);
+              toast.info("Cleared Hot leads filter");
+            } else {
+              setFilterTemp("Hot");
+              toast.info(`Filtered to ${hotLeads.length} Hot leads`);
+              if (hotLeads[0]) {
+                selectCase(hotLeads[0].id);
+                setDrawerTab("Overview");
+              }
+            }
+          }}
         />
         <KPI
           label="Follow-ups due"
           value={followUpsDue.length}
           status={followUpsDue.length ? "warning" : "success"}
           icon={<CalendarClock className="size-3.5" />}
-          support="On or before demo date"
+          support="Click to view due follow-ups"
+          clickHint="View"
+          onClick={() => {
+            if (followUpsDue[0]) {
+              selectCase(followUpsDue[0].id);
+              setDrawerTab("Overview");
+              toast.info(`Opened follow-up due: ${followUpsDue[0].clientName}`);
+            } else {
+              toast.info("No follow-ups due on or before demo date");
+            }
+          }}
         />
         <KPI
           label="Conversion"
@@ -133,10 +176,11 @@ export function EmmsModule() {
       </KPIGroup>
 
       <FilterBar
-        active={search !== "" || filterPriority !== "all"}
+        active={search !== "" || filterPriority !== "all" || filterTemp !== null}
         onReset={() => {
           setSearch("");
           setFilterPriority("all");
+          setFilterTemp(null);
         }}
       >
         <SearchBar value={search} onChange={setSearch} />

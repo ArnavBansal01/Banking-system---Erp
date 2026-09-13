@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -31,11 +32,16 @@ export function CreditModule() {
     filterPriority,
     setFilterPriority,
     selectCase,
+    setDrawerTab,
   } = useAppStore();
   const visible = useVisibleCases();
   const scope = getScope(currentRole);
   const canViewSla = can(currentRole, "viewSlaAttention");
   const metrics = computeMetrics(visible, currentDemoDate);
+
+  const [queryOnly, setQueryOnly] = useState(false);
+  const [cibilOnly, setCibilOnly] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
 
   // If role is Branch Manager or Officer, hide all breached SLA cases from Credit view
   const credit = visible
@@ -46,6 +52,11 @@ export function CreditModule() {
   const readyCount = credit.filter((c) => c.workflowStatus === "Ready").length;
   const exceptions = credit.filter((c) => c.cibilException);
   const queries = credit.filter((c) => c.queryRaised);
+
+  const displayCredit = credit
+    .filter((c) => !queryOnly || c.queryRaised)
+    .filter((c) => !cibilOnly || c.cibilException)
+    .filter((c) => !statusFilter || c.workflowStatus === statusFilter);
 
   const availableColumns = CREDIT_COLUMNS.filter((col) => col !== "SLA Attention" || canViewSla);
 
@@ -66,20 +77,60 @@ export function CreditModule() {
           label="In credit queue"
           value={credit.length}
           icon={<ClipboardCheck className="size-3.5" />}
-          support="Awaiting decision"
+          support={
+            queryOnly || cibilOnly || statusFilter
+              ? "Filter active (click to reset)"
+              : "Awaiting decision"
+          }
+          isActive={!queryOnly && !cibilOnly && !statusFilter}
+          clickHint="All"
+          onClick={() => {
+            setQueryOnly(false);
+            setCibilOnly(false);
+            setStatusFilter(null);
+            setSearch("");
+            setFilterPriority("all");
+            toast.info("Showing full credit queue");
+          }}
         />
         <KPI
           label="Under review"
           value={metrics.underReview}
           status="info"
-          support="Being assessed"
+          support={
+            statusFilter === "In Review"
+              ? "Filtered (click to clear)"
+              : "Being assessed · Click to filter"
+          }
+          isActive={statusFilter === "In Review"}
+          clickHint="Filter"
+          onClick={() => {
+            const next = statusFilter === "In Review" ? null : "In Review";
+            setStatusFilter(next);
+            toast.info(next ? "Filtered to Under Review" : "Showing all stages");
+          }}
         />
         <KPI
           label="Open queries"
           value={queries.length}
           status="warning"
           icon={<MessageSquare className="size-3.5" />}
-          support="Waiting on sales"
+          support={
+            queryOnly ? "Filter active · Click to clear" : "Waiting on sales · Click to open"
+          }
+          isActive={queryOnly}
+          clickHint="View"
+          onClick={() => {
+            const willFilter = !queryOnly;
+            setQueryOnly(willFilter);
+            if (queries[0]) {
+              selectCase(queries[0].id);
+              setDrawerTab("Queries");
+              toast.warning(`Redirected to open queries for ${queries[0].clientName}`);
+            } else {
+              toast.info("No open queries in this scope");
+            }
+          }}
         />
         {canViewSla ? (
           <KPI
@@ -87,7 +138,17 @@ export function CreditModule() {
             value={slaCases.length}
             status={slaCases.length > 0 ? "danger" : "neutral"}
             icon={<AlertTriangle className="size-3.5" />}
-            support="Breached >15 days"
+            support="Breached >15 days · Click to view"
+            clickHint="View"
+            onClick={() => {
+              if (slaCases[0]) {
+                selectCase(slaCases[0].id);
+                setDrawerTab("Checklist");
+                toast.error(`Viewing SLA breached file: ${slaCases[0].clientName}`);
+              } else {
+                toast.info("No SLA breached files");
+              }
+            }}
           />
         ) : (
           <KPI
@@ -95,7 +156,18 @@ export function CreditModule() {
             value={readyCount}
             status="success"
             icon={<CheckCircle2 className="size-3.5" />}
-            support="Assessment complete"
+            support="Assessment complete · Click to view"
+            clickHint="View"
+            onClick={() => {
+              const readyCase = credit.find((c) => c.workflowStatus === "Ready");
+              if (readyCase) {
+                selectCase(readyCase.id);
+                setDrawerTab("Overview");
+                toast.success(`Viewing ready file: ${readyCase.clientName}`);
+              } else {
+                toast.info("No files ready for approval");
+              }
+            }}
           />
         )}
         <KPI
@@ -103,15 +175,37 @@ export function CreditModule() {
           value={exceptions.length}
           status="warning"
           icon={<ShieldAlert className="size-3.5" />}
-          support="Need authority sign-off"
+          support={cibilOnly ? "Filter active · Click to clear" : "Need sign-off · Click to view"}
+          isActive={cibilOnly}
+          clickHint="Filter"
+          onClick={() => {
+            const willFilter = !cibilOnly;
+            setCibilOnly(willFilter);
+            if (exceptions[0]) {
+              selectCase(exceptions[0].id);
+              setDrawerTab("Overview");
+              toast.warning(`Viewing CIBIL exception: ${exceptions[0].clientName}`);
+            } else {
+              toast.info("No CIBIL exceptions in this scope");
+            }
+          }}
         />
       </KPIGroup>
 
       <FilterBar
-        active={search !== "" || filterPriority !== "all"}
+        active={
+          search !== "" ||
+          filterPriority !== "all" ||
+          queryOnly ||
+          cibilOnly ||
+          statusFilter !== null
+        }
         onReset={() => {
           setSearch("");
           setFilterPriority("all");
+          setQueryOnly(false);
+          setCibilOnly(false);
+          setStatusFilter(null);
         }}
       >
         <SearchBar value={search} onChange={setSearch} />
@@ -132,7 +226,7 @@ export function CreditModule() {
       <KanbanBoard>
         {availableColumns.map((col) => {
           const isSlaCol = col === "SLA Attention";
-          const list = credit.filter((c) => {
+          const list = displayCredit.filter((c) => {
             const isBreached = isCaseSlaBreached(c, currentDemoDate);
             if (isSlaCol) return isBreached;
             if (isBreached) return false;

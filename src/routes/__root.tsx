@@ -39,6 +39,24 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   console.error("Root Error Boundary:", error);
   const router = useRouter();
 
+  const handleReset = () => {
+    try {
+      const stored = localStorage.getItem("nbfc-erp-storage-v4");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.state) {
+          parsed.state.currentView = "EMMS";
+          parsed.state.selectedCaseId = null;
+          localStorage.setItem("nbfc-erp-storage-v4", JSON.stringify(parsed));
+        }
+      }
+    } catch {
+      // Storage parsing failed, continue with router invalidation
+    }
+    router.invalidate();
+    reset();
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
@@ -50,17 +68,15 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
-            onClick={() => {
-              router.invalidate();
-              reset();
-            }}
-            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+            onClick={handleReset}
+            className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 cursor-pointer"
           >
             Try again
           </button>
           <a
             href="/"
-            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+            onClick={handleReset}
+            className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent cursor-pointer"
           >
             Go home
           </a>
