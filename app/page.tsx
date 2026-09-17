@@ -1,31 +1,46 @@
-import { createFileRoute } from "@tanstack/react-router";
+"use client";
+
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { LoginPage } from "@/modules/auth/LoginPage";
 import { useAppStore } from "@/store/useAppStore";
+import { Providers } from "./providers";
 
 const title = "Cassmart ERP — Origination, Operations & Collections";
 const description =
   "Enterprise workspace for Cassmart Micro Foundations lending: enquiry pipeline, credit decisioning, disbursement operations and collections in one connected case lifecycle.";
 
-export const Route = createFileRoute("/")({
-  head: () => ({
-    meta: [
-      { title },
-      { name: "description", content: description },
-      { property: "og:title", content: title },
-      { property: "og:description", content: description },
-    ],
-  }),
-  component: Index,
-});
+export default function Home() {
+  return (
+    <Providers>
+      <IndexInner />
+    </Providers>
+  );
+}
 
-function Index() {
+function IndexInner() {
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
+
+    // Set favicon dynamically (mirrors __root.tsx behavior)
+    let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.type = "image/png";
+    link.href = "/image.png";
+
+    // Update page title and meta description
+    document.title = title;
+    const metaDesc = document.querySelector("meta[name='description']");
+    if (metaDesc) {
+      metaDesc.setAttribute("content", description);
+    }
   }, []);
 
   if (!mounted) {

@@ -1,3 +1,4 @@
+"use client";
 import { useEffect, useState } from "react";
 import { CalendarClock, Flame, Plus, Target, TrendingUp, Users } from "lucide-react";
 import { toast } from "sonner";

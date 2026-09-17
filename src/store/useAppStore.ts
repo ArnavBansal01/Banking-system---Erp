@@ -3,17 +3,15 @@ import {
   createNewEnquiry,
   updateLoanStage,
   addLoanNote,
-  resolveCase as resolveCaseDb,
+  resolveCase as resolveCaseApi,
   createCaseQuery,
   resolveCaseQuery,
   getAllLoans,
   getLoansByStage,
   getLoanDetails,
   recordLoanPayment,
-  type LoanDetailRecord,
-  type CaseQueryDbRecord,
-  type InstallmentDbRecord,
-} from "../../app/server/caseFunctions";
+} from "@/lib/api";
+import type { LoanDetailRecord, CaseQueryDbRecord, InstallmentDbRecord } from "../../app/server/caseFunctions";
 import type { LoanRow } from "../../app/server/db";
 import type {
   AppNotification,
@@ -540,7 +538,7 @@ export const useAppStore = create<AppState>()((set, get) => {
     // Fetch loans for a single stage from DuckDB
     fetchLoansByStage: async (stage: Stage) => {
       try {
-        const rows = await getLoansByStage({ data: stage });
+        const rows = await getLoansByStage(stage);
         const fetchedCases = rows.map(mapLoanRowToCase);
         set((state) => {
           const others = state.cases.filter((c) => c.stage !== stage);
@@ -551,10 +549,10 @@ export const useAppStore = create<AppState>()((set, get) => {
       }
     },
 
-    // Move loan stage in DuckDB via server function - Zero Client-Side Faking
+    // Move loan stage in DuckDB via API — Zero Client-Side Faking
     updateLoanStageAction: async (loan_id: string, new_stage: Stage) => {
       // 1. Await DuckDB write FIRST
-      await updateLoanStage({ data: { loan_id, new_stage } });
+      await updateLoanStage({ loan_id, new_stage });
 
       // 2. ONLY upon confirmed database update, update local state
       set((state) => ({
@@ -565,7 +563,7 @@ export const useAppStore = create<AppState>()((set, get) => {
     // Fetch single loan details with borrower info
     fetchCaseDetails: async (loan_id: string) => {
       try {
-        const detail = await getLoanDetails({ data: loan_id });
+        const detail = await getLoanDetails(loan_id);
         if (detail) {
           const mapped = mapLoanRowToCase(detail);
           set((state) => ({
@@ -602,14 +600,12 @@ export const useAppStore = create<AppState>()((set, get) => {
     createEnquiry: async (input) => {
       // 1. Await DuckDB write FIRST (Zero Client-Side Faking)
       const record = await createNewEnquiry({
-        data: {
-          name: input.clientName,
-          phone: input.contact,
-          amount: input.loanAmount,
-          emi_amount: input.emiAmount,
-          purpose: input.purpose,
-          loan_type: "Business",
-        },
+        name: input.clientName,
+        phone: input.contact,
+        amount: input.loanAmount,
+        emi_amount: input.emiAmount,
+        purpose: input.purpose,
+        loan_type: "Business",
       });
 
       // 2. Only upon confirmed database write, build the local state case
@@ -645,17 +641,15 @@ export const useAppStore = create<AppState>()((set, get) => {
 
     moveCase: async (id, stage, status, event, note) => {
       // 1. Await DuckDB stage update FIRST (Zero Client-Side Faking)
-      await updateLoanStage({ data: { loan_id: id, new_stage: stage } });
+      await updateLoanStage({ loan_id: id, new_stage: stage });
 
       // If a note is provided, persist it to DuckDB as well
       if (note) {
         try {
           await addLoanNote({
-            data: {
-              loan_id: id,
-              content: `${event}: ${note}`,
-              added_by_emp_id: get().currentRole,
-            },
+            loan_id: id,
+            content: `${event}: ${note}`,
+            added_by_emp_id: get().currentRole,
           });
         } catch (err) {
           console.warn(`[Cassmart] Note persistence warning for ${id}:`, err);
@@ -717,13 +711,11 @@ export const useAppStore = create<AppState>()((set, get) => {
 
       try {
         await recordLoanPayment({
-          data: {
-            loan_id: id,
-            amount,
-            payment_method: mode,
-            paid_date: demoDate,
-            recorded_by: actor,
-          },
+          loan_id: id,
+          amount,
+          payment_method: mode,
+          paid_date: demoDate,
+          recorded_by: actor,
         });
       } catch (err) {
         console.warn("[Cassmart] DuckDB recordLoanPayment notice:", err);
@@ -786,12 +778,10 @@ export const useAppStore = create<AppState>()((set, get) => {
 
     resolveCase: async (id, note, actor) => {
       // 1. Await DuckDB resolution FIRST (Zero Client-Side Faking)
-      await resolveCaseDb({
-        data: {
-          loan_id: id,
-          note,
-          resolved_by: actor,
-        },
+      await resolveCaseApi({
+        loan_id: id,
+        note,
+        resolved_by: actor,
       });
 
       // 2. ONLY upon confirmed DuckDB write, update local state
@@ -819,11 +809,9 @@ export const useAppStore = create<AppState>()((set, get) => {
     addNote: async (id, text, actor) => {
       // 1. Await DuckDB write FIRST (Zero Client-Side Faking)
       const noteRecord = await addLoanNote({
-        data: {
-          loan_id: id,
-          content: text,
-          added_by_emp_id: actor,
-        },
+        loan_id: id,
+        content: text,
+        added_by_emp_id: actor,
       });
 
       // 2. ONLY upon confirmed DuckDB write, update local state
@@ -855,13 +843,11 @@ export const useAppStore = create<AppState>()((set, get) => {
 
       // 1. Persist to DuckDB FIRST (Zero Client-Side Faking)
       const qRecord = await createCaseQuery({
-        data: {
-          loan_id: id,
-          question,
-          raised_by: actor,
-          raised_by_role: roleStr,
-          target_roles: targetRolesStr,
-        },
+        loan_id: id,
+        question,
+        raised_by: actor,
+        raised_by_role: roleStr,
+        target_roles: targetRolesStr,
       });
 
       const q: CaseQuery = {
@@ -889,12 +875,10 @@ export const useAppStore = create<AppState>()((set, get) => {
     resolveQuery: async (id, queryId, resolution, actor, actorRole) => {
       // 1. Persist to DuckDB FIRST (Zero Client-Side Faking)
       await resolveCaseQuery({
-        data: {
-          query_id: queryId,
-          resolution,
-          resolved_by: actor,
-          resolved_by_role: actorRole ?? get().currentRole,
-        },
+        query_id: queryId,
+        resolution,
+        resolved_by: actor,
+        resolved_by_role: actorRole ?? get().currentRole,
       });
 
       // 2. ONLY upon confirmed database write, update local state

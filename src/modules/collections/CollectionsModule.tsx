@@ -1,3 +1,4 @@
+"use client";
 import { useEffect, useState } from "react";
 import { AlertOctagon, CalendarClock, CheckCircle2, IndianRupee, TrendingDown } from "lucide-react";
 import { toast } from "sonner";

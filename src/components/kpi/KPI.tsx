@@ -1,3 +1,4 @@
+"use client";
 import React, { type ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";

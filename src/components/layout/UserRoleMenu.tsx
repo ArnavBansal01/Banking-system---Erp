@@ -1,3 +1,4 @@
+"use client";
 import * as React from "react";
 import { ChevronDown, RotateCcw, LogOut, ShieldCheck } from "lucide-react";
 import { toast } from "sonner";

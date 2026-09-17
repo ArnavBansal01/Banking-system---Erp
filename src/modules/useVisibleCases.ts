@@ -1,3 +1,4 @@
+"use client";
 import { useMemo } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { scopedCases } from "@/utils/scope";

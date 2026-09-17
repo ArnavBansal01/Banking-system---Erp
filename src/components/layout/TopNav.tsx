@@ -1,3 +1,4 @@
+"use client";
 import { Calendar } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import type { ModuleView } from "@/types/loan";

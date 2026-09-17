@@ -1,3 +1,4 @@
+"use client";
 import { Filter, Loader2, Search, X } from "lucide-react";
 import { useEffect, useRef, type ReactNode } from "react";
 import { cn } from "@/lib/utils";

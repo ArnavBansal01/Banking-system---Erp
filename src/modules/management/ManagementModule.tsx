@@ -1,3 +1,4 @@
+"use client";
 import { Activity, Banknote, Layers, Percent, Target } from "lucide-react";
 import { toast } from "sonner";
 import { useAppStore } from "@/store/useAppStore";

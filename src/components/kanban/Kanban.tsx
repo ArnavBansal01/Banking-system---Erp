@@ -1,3 +1,4 @@
+"use client";
 import { Inbox } from "lucide-react";
 import { useState, type DragEvent, type ReactNode } from "react";
 import { cn } from "@/lib/utils";

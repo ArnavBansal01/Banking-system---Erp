@@ -1,3 +1,4 @@
+"use client";
 import { AlertTriangle, MessageSquare, ShieldAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CollectionUrgency, Priority, Temperature } from "@/types/loan";

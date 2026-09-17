@@ -1,3 +1,4 @@
+"use client";
 import { useAppStore } from "@/store/useAppStore";
 import { TopNav } from "@/components/layout/TopNav";
 import { CaseDrawer } from "@/components/drawer/CaseDrawer";
