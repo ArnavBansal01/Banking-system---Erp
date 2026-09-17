@@ -107,7 +107,11 @@ const ROLE_OPTIONS: RoleOption[] = [
   },
 ];
 
-export function LoginPage() {
+interface LoginPageProps {
+  onBackToHome?: () => void;
+}
+
+export function LoginPage({ onBackToHome }: LoginPageProps = {}) {
   const { login } = useAppStore();
   const [selectedRole, setSelectedRole] = useState<Role>("Officer");
   const [email, setEmail] = useState<string>(ROLE_PROFILES["Officer"].email);
@@ -152,10 +156,24 @@ export function LoginPage() {
         <div className="absolute top-0 left-1/2 -translate-x-1/2 size-[500px] rounded-full bg-primary/8 blur-[120px]" />
       </div>
 
-      {/* Top Header — 60px matching reference */}
+      {/* Top Header — 60px matching Landing Page */}
       <header className="relative z-10 h-[60px] w-full border-b border-border bg-background shrink-0">
-        <div className="max-w-6xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
+        <div className="max-w-6xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-4">
+          <div
+            onClick={onBackToHome}
+            role={onBackToHome ? "button" : undefined}
+            tabIndex={onBackToHome ? 0 : undefined}
+            onKeyDown={(e) => {
+              if (onBackToHome && (e.key === "Enter" || e.key === " ")) {
+                e.preventDefault();
+                onBackToHome();
+              }
+            }}
+            className={cn(
+              "flex items-center gap-2.5 shrink-0",
+              onBackToHome && "cursor-pointer hover:opacity-85 transition-opacity",
+            )}
+          >
             <div className="flex size-8 items-center justify-center rounded-full bg-surface border border-border shadow-xs overflow-hidden">
               <img
                 src="/image.png"
@@ -172,6 +190,16 @@ export function LoginPage() {
           </div>
 
           <div className="flex items-center gap-2.5">
+            {onBackToHome && (
+              <button
+                type="button"
+                onClick={onBackToHome}
+                className="hidden sm:flex items-center gap-1.5 rounded-xl border border-border bg-surface px-3 py-1.5 text-xs font-medium text-foreground hover:bg-surface-raised hover:border-primary/40 transition-all cursor-pointer"
+                style={{ fontFamily: "Poppins, sans-serif" }}
+              >
+                ← Back to Home
+              </button>
+            )}
             <ThemeToggle />
           </div>
         </div>

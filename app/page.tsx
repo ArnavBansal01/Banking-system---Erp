@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { LoginPage } from "@/modules/auth/LoginPage";
+import { LandingPage } from "@/modules/landing/LandingPage";
 import { useAppStore } from "@/store/useAppStore";
 import { Providers } from "./providers";
 
@@ -21,6 +22,7 @@ export default function Home() {
 function IndexInner() {
   const isAuthenticated = useAppStore((s) => s.isAuthenticated);
   const [mounted, setMounted] = useState(false);
+  const [showLogin, setShowLogin] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -52,7 +54,10 @@ function IndexInner() {
   }
 
   if (!isAuthenticated) {
-    return <LoginPage />;
+    if (showLogin) {
+      return <LoginPage onBackToHome={() => setShowLogin(false)} />;
+    }
+    return <LandingPage onLoginClick={() => setShowLogin(true)} />;
   }
 
   return <AppShell />;
