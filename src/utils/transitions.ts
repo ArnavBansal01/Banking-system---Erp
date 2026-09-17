@@ -8,25 +8,80 @@ export interface Transition {
 }
 
 export const TRANSITIONS = {
-  convertToApplication: { stage: "credit_review", status: "New", event: "Application created" },
-  startReview: { stage: "credit_review", status: "In Review", event: "Credit review started" },
-  creditReady: { stage: "credit_review", status: "Ready", event: "Credit assessment ready" },
-  approve: { stage: "disbursement", status: "Verification", event: "Approved by credit authority" },
-  reject: { stage: "closed", status: "RESOLVED", event: "Application rejected" },
+  convertToApplication: {
+    stage: "application",
+    status: "New",
+    event: "Application created",
+  },
+  startReview: {
+    stage: "application",
+    status: "In Review",
+    event: "Credit review started",
+  },
+  creditReady: {
+    stage: "application",
+    status: "Ready",
+    event: "Credit assessment ready",
+  },
+  approve: {
+    stage: "credit approved",
+    status: "Verification",
+    event: "Approved by credit authority",
+  },
+  reject: {
+    stage: "recovered",
+    status: "RESOLVED",
+    event: "Application rejected",
+  },
   markReady: {
-    stage: "disbursement",
+    stage: "credit approved",
     status: "Ready for Disbursement",
     event: "Verification completed",
   },
   reopenFile: {
-    stage: "disbursement",
+    stage: "credit approved",
     status: "Verification",
     event: "File re-opened by executive authority",
   },
-  disburse: { stage: "collections", status: "DUE", event: "Disbursement processed" },
-  resolve: { stage: "collections", status: "RESOLVED", event: "Case resolved" },
-  escalate: { stage: "collections", status: "ESCALATED", event: "Case escalated" },
+  disburse: {
+    stage: "disbursed",
+    status: "DUE",
+    event: "Disbursement processed",
+  },
+  activateLoan: {
+    stage: "active loan",
+    status: "DUE",
+    event: "Loan active in collections",
+  },
+  resolve: {
+    stage: "recovered",
+    status: "RESOLVED",
+    event: "Case resolved",
+  },
+  escalate: {
+    stage: "active loan",
+    status: "ESCALATED",
+    event: "Case escalated",
+  },
 } satisfies Record<string, Transition>;
+
+export const LOAN_STAGES: Stage[] = [
+  "enquiry",
+  "application",
+  "credit approved",
+  "disbursed",
+  "active loan",
+  "recovered",
+];
+
+export const STAGE_LABELS: Record<Stage, string> = {
+  enquiry: "Enquiry",
+  application: "Application",
+  "credit approved": "Credit Approved",
+  disbursed: "Disbursed",
+  "active loan": "Active Loan",
+  recovered: "Recovered",
+};
 
 export const EMMS_COLUMNS: WorkflowStatus[] = ["New Enquiry", "Contacted", "Interested"];
 export const CREDIT_COLUMNS: WorkflowStatus[] = ["New", "In Review", "Ready", "SLA Attention"];
@@ -56,5 +111,5 @@ export function nextEmmsStatus(status: WorkflowStatus): WorkflowStatus | null {
 }
 
 export function isActiveLoan(c: LoanCase): boolean {
-  return c.stage === "collections";
+  return c.stage === "active loan" || c.stage === "disbursed";
 }

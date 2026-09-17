@@ -119,24 +119,11 @@ export function QueryCenterMenu() {
 
   const handleResolveSubmit = (caseId: string, queryId: string) => {
     if (!resolutionText.trim()) return;
-    const targetQ = allQueriesWithCase.find((x) => x.id === queryId);
     const actor = currentRole === "Officer" ? (scope?.officer ?? "Arnav") : currentRole;
-    if (
-      targetQ &&
-      (targetQ.raisedByRole === currentRole ||
-        targetQ.raisedBy === actor ||
-        targetQ.raisedBy === currentRole ||
-        (currentRole === "Officer" && targetQ.raisedByRole === "Officer"))
-    ) {
-      toast.error(
-        "You cannot resolve your own query. Clarification must come from the designated authority.",
-      );
-      return;
-    }
     resolveQuery(caseId, queryId, resolutionText.trim(), actor, currentRole);
     setResolutionText("");
     setResolvingId(null);
-    toast.success("Query resolved and status updated");
+    toast.success("Query resolved and status updated in DuckDB");
   };
 
   const handleGoToCase = (caseId: string) => {

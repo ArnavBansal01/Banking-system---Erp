@@ -137,7 +137,9 @@ export function NotificationMenu() {
 
   const cibilExceptionCases = React.useMemo(() => {
     if (currentRole === "Regional Manager" || currentRole === "MD") {
-      return visible.filter((c) => c.cibilException && c.stage === "credit_review");
+      return visible.filter(
+        (c) => c.cibilException && (c.stage === "application" || c.stage === "credit approved"),
+      );
     }
     return [];
   }, [visible, currentRole]);

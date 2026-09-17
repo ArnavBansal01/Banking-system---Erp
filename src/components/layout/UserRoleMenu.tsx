@@ -49,7 +49,7 @@ export function UserRoleMenu() {
   const displayName = currentUser?.name ?? scope.officer ?? currentRole;
   const userInitials = currentUser?.avatarInitials ?? initials(displayName);
   const userEmail =
-    currentUser?.email ?? `${currentRole.toLowerCase().replace(/\s+/g, ".")}@nbfc-finance.in`;
+    currentUser?.email ?? `${currentRole.toLowerCase().replace(/\s+/g, ".")}@cassmart.in`;
   const userDesignation = currentUser?.designation ?? currentRole;
 
   const handleLogout = () => {
@@ -150,16 +150,16 @@ export function UserRoleMenu() {
 
         <DropdownMenuSeparator className="my-1.5 bg-border/40" />
 
-        {/* Action: Reset Demo Data */}
+        {/* Action: Refresh Database */}
         <DropdownMenuItem
           onClick={() => {
             resetData();
-            toast.success("Demo data reset to initial seed state");
+            toast.success("Database synchronized from DuckDB");
           }}
-          className="group flex cursor-pointer select-none items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs font-semibold text-muted-foreground hover:bg-destructive/10 hover:text-destructive outline-none transition-colors"
+          className="group flex cursor-pointer select-none items-center gap-2.5 rounded-xl px-2.5 py-2 text-xs font-semibold text-muted-foreground hover:bg-surface-raised hover:text-foreground outline-none transition-colors"
         >
-          <RotateCcw className="size-3.5 shrink-0 transition-transform duration-200 group-hover:-rotate-90" />
-          <span>Reset Demo Data</span>
+          <RotateCcw className="size-3.5 shrink-0 transition-transform duration-200 group-hover:rotate-180" />
+          <span>Refresh Database</span>
         </DropdownMenuItem>
 
         <DropdownMenuSeparator className="my-1 bg-border/40" />

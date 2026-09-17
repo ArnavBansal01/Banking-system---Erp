@@ -1,8 +1,11 @@
-import type { EmiRecord, RawStage } from "@/data/mockData";
+export interface EmiRecord {
+  cycleMonth: string;
+  paidDate: string | null;
+  bounced: boolean;
+}
 
-export type { EmiRecord };
-
-export type Stage = RawStage | "active_loan";
+export type Stage =
+  "enquiry" | "application" | "credit approved" | "disbursed" | "active loan" | "recovered";
 
 export type Role =
   | "MD"

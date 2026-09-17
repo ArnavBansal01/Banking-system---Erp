@@ -1,6 +1,5 @@
 import type { LoanCase, Role } from "@/types/loan";
 import { isCaseSlaBreached } from "./dates";
-import { dataProvider } from "@/data/dataProvider";
 
 export type Action =
   | "createEnquiry"
@@ -80,6 +79,8 @@ const MATRIX: Record<Role, Action[]> = {
   MD,
 };
 
+const DEFAULT_DEMO_DATE = "2026-09-02";
+
 export function can(role: Role, action: Action, c?: LoanCase, demoDate?: string): boolean {
   if (!MATRIX[role].includes(action)) return false;
   if (!c) return true;
@@ -87,15 +88,15 @@ export function can(role: Role, action: Action, c?: LoanCase, demoDate?: string)
     case "convertToApplication":
       return c.stage === "enquiry";
     case "recordFollowUp":
-      return c.stage === "enquiry" || c.stage === "collections";
+      return c.stage === "enquiry" || c.stage === "active loan";
     case "editEnquiry":
       return c.stage === "enquiry";
     case "approve":
-      if (c.stage !== "credit_review") return false;
+      if (c.stage !== "application" && c.stage !== "credit approved") return false;
       // If application has breached 15-day SLA, ONLY Regional Manager & MD hold sanction authority
       if (
         c.workflowStatus === "SLA Attention" ||
-        isCaseSlaBreached(c, demoDate ?? dataProvider.getInitialDemoDate())
+        isCaseSlaBreached(c, demoDate ?? DEFAULT_DEMO_DATE)
       ) {
         return (
           role === "Regional Manager" ||
@@ -109,17 +110,18 @@ export function can(role: Role, action: Action, c?: LoanCase, demoDate?: string)
       if (c.cibilException && role === "Branch Manager") return false;
       return true;
     case "reject":
+      return c.stage === "application" || c.stage === "credit approved";
     case "review":
-      return c.stage === "credit_review";
+      return c.stage === "application";
     case "query":
       if (role === "MD") return false;
-      return c.stage === "credit_review" || c.stage === "disbursement";
+      return c.stage === "application" || c.stage === "credit approved" || c.stage === "disbursed";
     case "resolveQuery":
       return c.queryRaised || (c.queries && c.queries.some((q) => q.status === "OPEN"));
     case "verify":
     case "markReady":
       return (
-        c.stage === "disbursement" &&
+        c.stage === "credit approved" &&
         c.workflowStatus !== "Disbursed" &&
         c.workflowStatus !== "SLA Attention"
       );
@@ -128,14 +130,20 @@ export function can(role: Role, action: Action, c?: LoanCase, demoDate?: string)
     case "viewSlaAttention":
       return true;
     case "processDisbursement":
-      return c.stage === "disbursement" && c.workflowStatus === "Ready for Disbursement";
+      return (
+        (c.stage === "credit approved" || c.stage === "disbursed") &&
+        c.workflowStatus === "Ready for Disbursement"
+      );
     case "recordPayment":
+      return c.stage === "active loan" || c.stage === "disbursed";
     case "recordVisit":
-      return c.stage === "collections";
+      return c.stage === "active loan";
     case "resolve":
-      return c.stage === "collections" && c.workflowStatus !== "RESOLVED";
+      return (
+        (c.stage === "active loan" || c.stage === "disbursed") && c.workflowStatus !== "RESOLVED"
+      );
     case "escalate":
-      return !c.escalated && c.stage !== "closed";
+      return !c.escalated && c.stage !== "recovered";
     default:
       return true;
   }

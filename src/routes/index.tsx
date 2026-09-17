@@ -4,9 +4,9 @@ import { AppShell } from "@/components/layout/AppShell";
 import { LoginPage } from "@/modules/auth/LoginPage";
 import { useAppStore } from "@/store/useAppStore";
 
-const title = "NBFC Loan ERP — Origination, Operations & Collections";
+const title = "Cassmart ERP — Origination, Operations & Collections";
 const description =
-  "Enterprise workspace for NBFC lending: enquiry pipeline, credit decisioning, disbursement operations and collections in one connected case lifecycle.";
+  "Enterprise workspace for Cassmart Micro Foundations lending: enquiry pipeline, credit decisioning, disbursement operations and collections in one connected case lifecycle.";
 
 export const Route = createFileRoute("/")({
   head: () => ({

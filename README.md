@@ -1,6 +1,6 @@
-# NBFC Enterprise Resource Planning (ERP)
+# Cassmart Micro Foundations — Enterprise Resource Planning (ERP)
 
-A unified Enterprise NBFC platform for managing the end-to-end loan lifecycle — covering enquiry, credit evaluation, operations, disbursement, and collections in a connected workflow.
+A unified Enterprise lending platform for managing the end-to-end loan lifecycle — covering enquiry, credit evaluation, operations, disbursement, and collections in a connected workflow.
 
 ## Overview
 

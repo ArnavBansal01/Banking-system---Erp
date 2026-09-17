@@ -15,7 +15,7 @@ export interface CollectionBuckets {
 }
 
 export function collectionBuckets(cases: LoanCase[], demoDate: string): CollectionBuckets {
-  const active = cases.filter((c) => c.stage === "collections");
+  const active = cases.filter((c) => c.stage === "active loan" || c.stage === "disbursed");
   const b: CollectionBuckets = {
     due: [],
     overdue: [],
@@ -26,7 +26,7 @@ export function collectionBuckets(cases: LoanCase[], demoDate: string): Collecti
   };
   for (const c of active) {
     const s = getCollectionState(c, demoDate);
-    if (s.status === "RESOLVED") b.resolved.push(c);
+    if (s.status === "RESOLVED" || c.stage === "recovered") b.resolved.push(c);
     else if (s.status === "ESCALATED") b.escalated.push(c);
     else if (s.status === "OVERDUE") b.overdue.push(c);
     else b.due.push(c);
@@ -73,15 +73,17 @@ export interface Metrics {
 
 export function computeMetrics(cases: LoanCase[], demoDate: string): Metrics {
   const enquiries = cases.filter((c) => c.stage === "enquiry");
-  const credit = cases.filter((c) => c.stage === "credit_review");
-  const ops = cases.filter((c) => c.stage === "disbursement");
-  const collections = cases.filter((c) => c.stage === "collections");
+  const credit = cases.filter((c) => c.stage === "application" || c.stage === "credit approved");
+  const ops = cases.filter((c) => c.stage === "credit approved" || c.stage === "disbursed");
+  const collections = cases.filter((c) => c.stage === "active loan" || c.stage === "recovered");
   const converted = cases.filter((c) => c.stage !== "enquiry");
   const buckets = collectionBuckets(cases, demoDate);
   const pipeline = [...credit, ...ops];
   const slas = pipeline.map((c) => getApplicationSla(c, demoDate));
-  const disbursedCases = cases.filter((c) => c.disbursedAmount > 0);
-  const totalDisbursed = sum(disbursedCases.map((c) => c.disbursedAmount));
+  const disbursedCases = cases.filter(
+    (c) => c.disbursedAmount > 0 || c.stage === "disbursed" || c.stage === "active loan",
+  );
+  const totalDisbursed = sum(disbursedCases.map((c) => c.disbursedAmount || c.loanAmount));
 
   return {
     totalCases: cases.length,

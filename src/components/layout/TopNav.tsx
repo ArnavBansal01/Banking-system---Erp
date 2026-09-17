@@ -26,7 +26,7 @@ export function TopNav() {
           <span className="grid size-8 place-items-center rounded-lg bg-primary/15 text-primary">
             <Landmark className="size-4" aria-hidden />
           </span>
-          <span className="text-sm font-extrabold tracking-tight text-foreground">NBFC</span>
+          <span className="text-sm font-extrabold tracking-tight text-foreground">Cassmart</span>
         </div>
 
         <nav
@@ -52,9 +52,12 @@ export function TopNav() {
         </nav>
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <label className="flex items-center gap-2 rounded-lg border border-border bg-surface/70 px-2.5 py-1.5 cursor-pointer hover:border-primary/40 hover:bg-surface-raised transition-colors">
+          <label
+            title="System Date"
+            className="flex items-center gap-2 rounded-lg border border-border bg-surface/70 px-2.5 py-1.5 cursor-pointer hover:border-primary/40 hover:bg-surface-raised transition-colors"
+          >
             <Calendar className="size-3.5 text-muted-foreground" aria-hidden />
-            <span className="sr-only">Demo date</span>
+            <span className="sr-only">System date</span>
             <input
               type="date"
               value={currentDemoDate}

@@ -1,6 +1,18 @@
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
-import { dataProvider } from "@/data/dataProvider";
+import {
+  createNewEnquiry,
+  updateLoanStage,
+  addLoanNote,
+  resolveCase as resolveCaseDb,
+  createCaseQuery,
+  resolveCaseQuery,
+  getAllLoans,
+  getLoansByStage,
+  getLoanDetails,
+  type LoanDetailRecord,
+  type CaseQueryDbRecord,
+} from "../../app/server/caseFunctions";
+import type { LoanRow } from "../../app/server/db";
 import type {
   AppNotification,
   CaseQuery,
@@ -10,7 +22,7 @@ import type {
   Stage,
   WorkflowStatus,
 } from "@/types/loan";
-import { TRANSITIONS } from "@/utils/transitions";
+import { LOAN_STAGES } from "@/utils/transitions";
 
 export interface UserProfile {
   name: string;
@@ -25,7 +37,7 @@ export interface UserProfile {
 export const ROLE_PROFILES: Record<Role, UserProfile> = {
   MD: {
     name: "Vikramaditya Singhania",
-    email: "v.singhania@nbfc-finance.in",
+    email: "v.singhania@cassmart.in",
     role: "MD",
     designation: "Managing Director & CEO",
     department: "Executive Committee",
@@ -34,7 +46,7 @@ export const ROLE_PROFILES: Record<Role, UserProfile> = {
   },
   "Business Head": {
     name: "Aakash Mehra",
-    email: "a.mehra@nbfc-finance.in",
+    email: "a.mehra@cassmart.in",
     role: "Business Head",
     designation: "Head of Retail Lending",
     department: "Business Growth & Alliances",
@@ -43,7 +55,7 @@ export const ROLE_PROFILES: Record<Role, UserProfile> = {
   },
   "Regional Manager": {
     name: "Rajeshwar Sharma",
-    email: "r.sharma@nbfc-finance.in",
+    email: "r.sharma@cassmart.in",
     role: "Regional Manager",
     designation: "Regional Credit Head",
     department: "Northern Zonal Office",
@@ -52,7 +64,7 @@ export const ROLE_PROFILES: Record<Role, UserProfile> = {
   },
   "Area Manager": {
     name: "Pooja Malhotra",
-    email: "p.malhotra@nbfc-finance.in",
+    email: "p.malhotra@cassmart.in",
     role: "Area Manager",
     designation: "Area Operations Lead",
     department: "Punjab Circle",
@@ -61,7 +73,7 @@ export const ROLE_PROFILES: Record<Role, UserProfile> = {
   },
   "Branch Manager": {
     name: "Sunita Verma",
-    email: "s.verma@nbfc-finance.in",
+    email: "s.verma@cassmart.in",
     role: "Branch Manager",
     designation: "Branch Manager & Approver",
     department: "Chandigarh Hub",
@@ -70,7 +82,7 @@ export const ROLE_PROFILES: Record<Role, UserProfile> = {
   },
   "General Manager": {
     name: "Deepak Chawla",
-    email: "d.chawla@nbfc-finance.in",
+    email: "d.chawla@cassmart.in",
     role: "General Manager",
     designation: "General Manager — Operations",
     department: "Central Operations",
@@ -79,7 +91,7 @@ export const ROLE_PROFILES: Record<Role, UserProfile> = {
   },
   Officer: {
     name: "Arnav Bansal",
-    email: "arnav.bansal@nbfc-finance.in",
+    email: "arnav.bansal@cassmart.in",
     role: "Officer",
     designation: "Senior Credit & Field Officer",
     department: "Retail Origination & Collections",
@@ -102,12 +114,107 @@ export function getUserProfileForRole(role: Role): UserProfile {
   if (ROLE_PROFILES[role]) return ROLE_PROFILES[role];
   return {
     name: `${role} User`,
-    email: `${role.toLowerCase().replace(/\s+/g, ".")}@nbfc-finance.in`,
+    email: `${role.toLowerCase().replace(/\s+/g, ".")}@cassmart.in`,
     role,
     designation: role,
-    department: "NBFC Lending Operations",
+    department: "Cassmart Micro Foundations",
     scopeLabel: "Designated Scope",
     avatarInitials: role.slice(0, 2).toUpperCase(),
+  };
+}
+
+export function mapLoanRowToCase(row: LoanRow | LoanDetailRecord): LoanCase {
+  const borrower = "borrower_name" in row ? row.borrower_name : null;
+  const phone = "borrower_phone" in row ? row.borrower_phone : null;
+  const email = "borrower_email" in row ? row.borrower_email : null;
+
+  const rawQueries: CaseQueryDbRecord[] =
+    "queries" in row && Array.isArray(row.queries) ? (row.queries as CaseQueryDbRecord[]) : [];
+  const mappedQueries: CaseQuery[] = rawQueries.map((q: CaseQueryDbRecord): CaseQuery => ({
+    id: q.id,
+    question: q.question || "",
+    raisedBy: q.raised_by || "Officer",
+    raisedByRole: (q.raised_by_role as Role) || "Officer",
+    raisedAt: q.created_at
+      ? String(q.created_at).slice(0, 16)
+      : new Date().toISOString().slice(0, 16),
+    targetRoles: q.target_roles
+      ? (q.target_roles.split(",") as Role[])
+      : ["Branch Manager", "Officer"],
+    status: q.status === "resolved" ? "RESOLVED" : "OPEN",
+    resolution: q.resolution || undefined,
+    resolvedBy: q.resolved_by || undefined,
+    resolvedByRole: (q.resolved_by_role as Role) || undefined,
+    resolvedAt: q.resolved_at ? String(q.resolved_at).slice(0, 16) : undefined,
+  }));
+
+  return {
+    id: row.id,
+    clientName: borrower || row.purpose || `Loan ${row.id}`,
+    loanAmount: row.amount ?? 0,
+    emiAmount: row.emi_amount ?? 0,
+    outstanding: row.amount ?? 0,
+    stage: row.stage,
+    workflowStatus: row.stage === "active loan" ? "DUE" : "New",
+    queryRaised: mappedQueries.some((q) => q.status === "OPEN"),
+    escalated: false,
+    cibilException: false,
+    priority: "Medium",
+    region: "North",
+    area: "Punjab",
+    branch: "Chandigarh",
+    assignedOfficer: "Arnav",
+    temperature: "Warm",
+    followUpCount: 0,
+    nextFollowUp: null,
+    lastFollowUp: null,
+    applicationDate: row.date_of_disbursal ?? null,
+    approvalDate: null,
+    reopenedAt: null,
+    reopenedBy: null,
+    disbursedDate: row.date_of_disbursal ?? null,
+    disbursedAmount: row.amount ?? 0,
+    dueDayStart: 1,
+    dueDayEnd: 5,
+    emiHistory: [],
+    payments: [],
+    visits: [],
+    collectionQueue: "none",
+    applicant: {
+      entityType: "Individual",
+      contact: phone || "",
+      email: email || "",
+      business: row.purpose || row.loan_type,
+      purpose: row.purpose || row.loan_type,
+    },
+    terms: {
+      product: row.loan_type,
+      tenureMonths: row.tenure_in_months ?? 12,
+      interestRate: row.rate_of_interest ?? 12,
+      repayment: "Monthly",
+      bankAccount: "",
+    },
+    documents: [],
+    checklist: [],
+    credit: {
+      cibil: 720,
+      existingLoans: 0,
+      existingObligations: 0,
+      defaults: 0,
+      overdueAmount: 0,
+      riskLevel: "Low",
+      recommendation: "Standard approval",
+    },
+    financials: {
+      annualRevenue: 0,
+      netCashFlow: 0,
+      existingObligations: 0,
+      repaymentCapacity: 0,
+    },
+    exceptions: [],
+    notes: [],
+    queries: mappedQueries,
+    history: [],
   };
 }
 
@@ -125,13 +232,14 @@ interface AppState {
   search: string;
   filterStatus: string;
   filterPriority: string;
+  isLoading: boolean;
 
-  // business state
+  // business state - strictly empty initially (no mock data)
   cases: LoanCase[];
   notifications: AppNotification[];
 
   // Auth actions
-  login: (role: Role) => void;
+  login: (role: Role, customEmail?: string) => void;
   logout: () => void;
 
   // UI actions
@@ -143,6 +251,12 @@ interface AppState {
   setSearch: (q: string) => void;
   setFilterStatus: (v: string) => void;
   setFilterPriority: (v: string) => void;
+
+  // Async server function integration
+  fetchAllLoans: () => Promise<void>;
+  fetchLoansByStage: (stage: Stage) => Promise<void>;
+  updateLoanStageAction: (loan_id: string, new_stage: Stage) => Promise<void>;
+  fetchCaseDetails: (loan_id: string) => Promise<void>;
 
   // notification actions
   addNotification: (n: Omit<AppNotification, "id" | "timestamp" | "read">) => void;
@@ -164,30 +278,35 @@ interface AppState {
     assignedOfficer: string;
     purpose: string;
     contact: string;
-  }) => void;
+  }) => Promise<LoanCase>;
   moveCase: (
     id: string,
     stage: Stage,
     status: WorkflowStatus,
     event: string,
     note?: string,
-  ) => void;
+  ) => Promise<void>;
   recordFollowUp: (id: string, note: string, actor: string) => void;
   recordVisit: (id: string, note: string, actor: string) => void;
   recordPayment: (id: string, amount: number, mode: string, actor: string) => void;
   setNextFollowUp: (id: string, date: string, actor: string) => void;
   escalateCase: (id: string, reason: string, actor: string) => void;
-  resolveCase: (id: string, note: string, actor: string) => void;
+  resolveCase: (id: string, note: string, actor: string) => Promise<void>;
   assignCase: (id: string, officer: string, actor: string) => void;
-  addNote: (id: string, text: string, actor: string) => void;
-  raiseQuery: (id: string, question: string, actor: string, actorRole?: Role | undefined) => void;
+  addNote: (id: string, text: string, actor: string) => Promise<void>;
+  raiseQuery: (
+    id: string,
+    question: string,
+    actor: string,
+    actorRole?: Role | undefined,
+  ) => Promise<void>;
   resolveQuery: (
     id: string,
     queryId: string,
     resolution: string,
     actor: string,
     actorRole?: Role | undefined,
-  ) => void;
+  ) => Promise<void>;
   reopenFile: (id: string, remarks: string, actor: string, actorRole?: Role | undefined) => void;
   toggleChecklist: (id: string, key: string, actor: string) => void;
 }
@@ -200,606 +319,538 @@ function stamp(demoDate: string): string {
   return `${demoDate}T${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
 }
 
-const INITIAL_NOTIFICATIONS: AppNotification[] = [
-  {
-    id: "notif-1",
-    caseId: "CASE-001",
-    caseName: "Arvind Agritech Pvt. Ltd.",
-    title: "High-Priority Enquiry",
-    message: "Hot lead enquiry assigned to Arnav. Scheduled follow-up pending.",
-    type: "followup",
-    targetRoles: ["Officer", "Branch Manager"],
-    targetOfficer: "Arnav",
-    timestamp: "2026-09-02T09:30",
-    read: false,
-  },
-  {
-    id: "notif-2",
-    caseId: "CASE-005",
-    caseName: "Malhotra Infotech",
-    title: "CIBIL Policy Deviation",
-    message: "Application requires deviation approval (CIBIL score below cutoff).",
-    type: "approval",
-    targetRoles: ["Regional Manager", "MD"],
-    timestamp: "2026-09-01T14:15",
-    read: false,
-  },
-  {
-    id: "notif-3",
-    caseId: "CASE-011",
-    caseName: "Komal Textiles",
-    title: "EMI Payment Due Window Open",
-    message: "EMI cycle Sept 1 - Sept 5 is active. Repayment due from borrower.",
-    type: "due",
-    targetRoles: ["Officer", "Branch Manager"],
-    targetOfficer: "Arnav",
-    timestamp: "2026-09-02T08:00",
-    read: false,
-  },
-];
+const AUTH_STORAGE_KEY = "cassmart_user_auth_session";
 
-const dummyStorage = {
-  getItem: () => null,
-  setItem: () => {},
-  removeItem: () => {},
-};
+function getSavedAuth(): {
+  isAuthenticated: boolean;
+  currentUser: UserProfile | null;
+  currentRole: Role;
+  currentView: ModuleView;
+} {
+  if (typeof window === "undefined") {
+    return {
+      isAuthenticated: false,
+      currentUser: null,
+      currentRole: "Officer",
+      currentView: "EMMS",
+    };
+  }
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.currentRole && parsed.currentUser) {
+        return {
+          isAuthenticated: true,
+          currentUser: parsed.currentUser,
+          currentRole: parsed.currentRole,
+          currentView:
+            parsed.currentView ?? ROLE_DEFAULT_VIEWS[parsed.currentRole as Role] ?? "EMMS",
+        };
+      }
+    }
+  } catch (storageErr) {
+    console.warn("[Cassmart Auth] Could not parse stored session:", storageErr);
+  }
+  return {
+    isAuthenticated: false,
+    currentUser: null,
+    currentRole: "Officer",
+    currentView: "EMMS",
+  };
+}
 
-export const useAppStore = create<AppState>()(
-  persist(
-    (set, get) => {
-      const patch = (
-        id: string,
-        updater: (c: LoanCase) => LoanCase,
-        event?: { action: string; actor: string; note?: string | undefined },
-      ) =>
-        set((state) => ({
-          cases: state.cases.map((c) => {
-            if (c.id !== id) return c;
-            const updated = updater(c);
-            if (!event) return updated;
-            return {
-              ...updated,
-              history: [
-                ...updated.history,
-                {
-                  id: uid("h"),
-                  timestamp: stamp(state.currentDemoDate),
-                  actor: event.actor,
-                  action: event.action,
-                  note: event.note,
-                },
-              ],
-            };
-          }),
-        }));
+export const useAppStore = create<AppState>()((set, get) => {
+  const initialAuth = getSavedAuth();
 
-      return {
-        isAuthenticated: false,
-        currentUser: null,
+  // If already authenticated from saved browser session, fetch loans immediately
+  if (initialAuth.isAuthenticated && typeof window !== "undefined") {
+    setTimeout(() => {
+      get().fetchAllLoans();
+    }, 0);
+  }
 
-        currentRole: "Officer",
-        currentView: "EMMS",
-        currentDemoDate: dataProvider.getInitialDemoDate(),
+  const patch = (
+    id: string,
+    updater: (c: LoanCase) => LoanCase,
+    event?: { action: string; actor: string; note?: string | undefined },
+  ) =>
+    set((state) => ({
+      cases: state.cases.map((c) => {
+        if (c.id !== id) return c;
+        const updated = updater(c);
+        if (!event) return updated;
+        return {
+          ...updated,
+          history: [
+            ...updated.history,
+            {
+              id: uid("h"),
+              timestamp: stamp(state.currentDemoDate),
+              actor: event.actor,
+              action: event.action,
+              note: event.note,
+            },
+          ],
+        };
+      }),
+    }));
+
+  return {
+    isAuthenticated: initialAuth.isAuthenticated,
+    currentUser: initialAuth.currentUser,
+
+    currentRole: initialAuth.currentRole,
+    currentView: initialAuth.currentView,
+    currentDemoDate: "2026-09-02",
+    selectedCaseId: null,
+    activeDrawerTab: "Overview",
+    search: "",
+    filterStatus: "all",
+    filterPriority: "all",
+    isLoading: false,
+
+    // Real data only: empty on initial load until fetched from DuckDB
+    cases: [],
+    notifications: [],
+
+    login: (role: Role, customEmail?: string) => {
+      let profile = getUserProfileForRole(role);
+      if (customEmail && customEmail.trim()) {
+        profile = {
+          ...profile,
+          email: customEmail.trim(),
+        };
+      }
+      const defaultView = ROLE_DEFAULT_VIEWS[role] ?? "EMMS";
+      set({
+        isAuthenticated: true,
+        currentUser: profile,
+        currentRole: role,
+        currentView: defaultView,
         selectedCaseId: null,
-        activeDrawerTab: "Overview",
         search: "",
         filterStatus: "all",
-        filterPriority: "all",
+      });
 
-        cases: dataProvider.getCases(),
-        notifications: INITIAL_NOTIFICATIONS,
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem(
+            AUTH_STORAGE_KEY,
+            JSON.stringify({
+              isAuthenticated: true,
+              currentUser: profile,
+              currentRole: role,
+              currentView: defaultView,
+            }),
+          );
+        } catch (storageErr) {
+          console.warn("[Cassmart Auth] Failed to save session to localStorage:", storageErr);
+        }
+      }
 
-        login: (role: Role) => {
-          const profile = getUserProfileForRole(role);
-          const defaultView = ROLE_DEFAULT_VIEWS[role] ?? "EMMS";
-          set({
-            isAuthenticated: true,
-            currentUser: profile,
-            currentRole: role,
-            currentView: defaultView,
-            selectedCaseId: null,
-            search: "",
-            filterStatus: "all",
-          });
-        },
+      // Fetch fresh loans from DuckDB on sign-in
+      get().fetchAllLoans();
+    },
 
-        logout: () => {
-          set({
-            isAuthenticated: false,
-            currentUser: null,
-            selectedCaseId: null,
-          });
-        },
+    logout: () => {
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+        } catch (storageErr) {
+          console.warn("[Cassmart Auth] Failed to remove session from localStorage:", storageErr);
+        }
+      }
+      set({
+        isAuthenticated: false,
+        currentUser: null,
+        selectedCaseId: null,
+      });
+    },
 
-        resetData: () =>
+    resetData: () => {
+      // Re-fetches current database contents without any mock data
+      get().fetchAllLoans();
+    },
+
+    setRole: (currentRole) => set({ currentRole, selectedCaseId: null }),
+    setView: (currentView) =>
+      set({ currentView, selectedCaseId: null, search: "", filterStatus: "all" }),
+    setDemoDate: (currentDemoDate) => set({ currentDemoDate }),
+    selectCase: (selectedCaseId) => set({ selectedCaseId, activeDrawerTab: "Overview" }),
+    setDrawerTab: (activeDrawerTab) => set({ activeDrawerTab }),
+    setSearch: (search) => set({ search }),
+    setFilterStatus: (filterStatus) => set({ filterStatus }),
+    setFilterPriority: (filterPriority) => set({ filterPriority }),
+
+    // Fetch all loans across all stages from DuckDB in a single query
+    fetchAllLoans: async () => {
+      set({ isLoading: true });
+      try {
+        const records = await getAllLoans();
+        const allCases: LoanCase[] = (records ?? []).map(mapLoanRowToCase);
+        set({ cases: allCases, isLoading: false });
+      } catch (error) {
+        console.error("[Cassmart] Error fetching all loans from DuckDB:", error);
+        set({ isLoading: false });
+      }
+    },
+
+    // Fetch loans for a single stage from DuckDB
+    fetchLoansByStage: async (stage: Stage) => {
+      try {
+        const rows = await getLoansByStage({ data: stage });
+        const fetchedCases = rows.map(mapLoanRowToCase);
+        set((state) => {
+          const others = state.cases.filter((c) => c.stage !== stage);
+          return { cases: [...others, ...fetchedCases] };
+        });
+      } catch (error) {
+        console.error(`[Cassmart] Error fetching loans for stage ${stage}:`, error);
+      }
+    },
+
+    // Move loan stage in DuckDB via server function - Zero Client-Side Faking
+    updateLoanStageAction: async (loan_id: string, new_stage: Stage) => {
+      // 1. Await DuckDB write FIRST
+      await updateLoanStage({ data: { loan_id, new_stage } });
+
+      // 2. ONLY upon confirmed database update, update local state
+      set((state) => ({
+        cases: state.cases.map((c) => (c.id === loan_id ? { ...c, stage: new_stage } : c)),
+      }));
+    },
+
+    // Fetch single loan details with borrower info
+    fetchCaseDetails: async (loan_id: string) => {
+      try {
+        const detail = await getLoanDetails({ data: loan_id });
+        if (detail) {
+          const mapped = mapLoanRowToCase(detail);
           set((state) => ({
-            cases: dataProvider.reset(),
-            notifications: INITIAL_NOTIFICATIONS,
-            currentDemoDate: dataProvider.getInitialDemoDate(),
-            selectedCaseId: null,
-            activeDrawerTab: "Overview",
-            search: "",
-            filterStatus: "all",
-            filterPriority: "all",
-            isAuthenticated: state.isAuthenticated,
-            currentUser: state.currentUser,
-          })),
+            cases: state.cases.some((c) => c.id === loan_id)
+              ? state.cases.map((c) => (c.id === loan_id ? mapped : c))
+              : [...state.cases, mapped],
+          }));
+        }
+      } catch (error) {
+        console.error(`[Cassmart] Failed to fetch loan details for ${loan_id}:`, error);
+      }
+    },
 
-        setRole: (currentRole) => set({ currentRole, selectedCaseId: null }),
-        setView: (currentView) =>
-          set({ currentView, selectedCaseId: null, search: "", filterStatus: "all" }),
-        setDemoDate: (currentDemoDate) => set({ currentDemoDate }),
-        selectCase: (selectedCaseId) => set({ selectedCaseId, activeDrawerTab: "Overview" }),
-        setDrawerTab: (activeDrawerTab) => set({ activeDrawerTab }),
-        setSearch: (search) => set({ search }),
-        setFilterStatus: (filterStatus) => set({ filterStatus }),
-        setFilterPriority: (filterPriority) => set({ filterPriority }),
-
-        addNotification: (n) => {
-          const notif: AppNotification = {
-            ...n,
-            id: uid("notif"),
-            timestamp: stamp(get().currentDemoDate),
-            read: false,
-          };
-          set((state) => ({ notifications: [notif, ...state.notifications] }));
-        },
-        markNotificationAsRead: (id) =>
-          set((state) => ({
-            notifications: state.notifications.map((n) => (n.id === id ? { ...n, read: true } : n)),
-          })),
-        markAllNotificationsAsRead: () =>
-          set((state) => ({
-            notifications: state.notifications.map((n) => ({ ...n, read: true })),
-          })),
-
-        createEnquiry: (input) => {
-          const template = get().cases[0]!;
-          const id = `CASE-${String(100 + get().cases.length).slice(-3)}`;
-          const date = get().currentDemoDate;
-          const fresh: LoanCase = {
-            ...template,
-            id,
-            clientName: input.clientName,
-            loanAmount: input.loanAmount,
-            emiAmount: input.emiAmount,
-            outstanding: input.loanAmount,
-            stage: "enquiry",
-            workflowStatus: "New Enquiry",
-            queryRaised: false,
-            escalated: false,
-            priority: input.temperature === "Hot" ? "High" : "Medium",
-            region: input.region,
-            area: input.area,
-            branch: input.branch,
-            assignedOfficer: input.assignedOfficer,
-            temperature: input.temperature,
-            followUpCount: 0,
-            nextFollowUp: null,
-            lastFollowUp: null,
-            applicationDate: null,
-            approvalDate: null,
-            reopenedAt: null,
-            reopenedBy: null,
-            disbursedDate: null,
-            disbursedAmount: 0,
-            emiHistory: [],
-            payments: [],
-            visits: [],
-            collectionQueue: "none",
-            applicant: { ...template.applicant, contact: input.contact, purpose: input.purpose },
-            exceptions: [],
-            notes: [],
-            history: [
-              {
-                id: uid("h"),
-                timestamp: stamp(date),
-                actor: input.assignedOfficer,
-                action: "Enquiry created",
-              },
-            ],
-          };
-          set((state) => ({ cases: [fresh, ...state.cases], selectedCaseId: id }));
-        },
-
-        moveCase: (id, stage, status, event, note) => {
-          const c = get().cases.find((x) => x.id === id);
-          patch(
-            id,
-            (c) => ({
-              ...c,
-              stage,
-              workflowStatus: status,
-              queryRaised: stage === "credit_review" ? c.queryRaised : false,
-              applicationDate:
-                stage === "credit_review" && !c.applicationDate
-                  ? get().currentDemoDate
-                  : c.applicationDate,
-              approvalDate:
-                event === TRANSITIONS.approve.event || (stage === "disbursement" && !c.approvalDate)
-                  ? get().currentDemoDate
-                  : (c.approvalDate ?? null),
-              disbursedDate: stage === "collections" ? get().currentDemoDate : c.disbursedDate,
-              disbursedAmount: stage === "collections" ? c.loanAmount : c.disbursedAmount,
-              collectionQueue: stage === "collections" ? "followup" : c.collectionQueue,
-            }),
-            { action: event, actor: get().currentRole, note },
-          );
-
-          // Trigger targeted notifications on major milestones
-          if (event === TRANSITIONS.approve.event) {
-            get().addNotification({
-              caseId: id,
-              caseName: c?.clientName,
-              title: "Loan Approved",
-              message: `Loan for ${c?.clientName ?? id} approved by ${get().currentRole}. Handed over to Operations.`,
-              type: "approval",
-              targetRoles: ["Branch Manager", "Regional Manager", "MD", "Officer"],
-              targetOfficer: c?.assignedOfficer,
-            });
-          } else if (event === TRANSITIONS.disburse.event) {
-            get().addNotification({
-              caseId: id,
-              caseName: c?.clientName,
-              title: "Funds Disbursed",
-              message: `Disbursement completed for ${c?.clientName ?? id}. Repayment schedule is now active.`,
-              type: "general",
-              targetRoles: ["Branch Manager", "Regional Manager", "Officer"],
-              targetOfficer: c?.assignedOfficer,
-            });
-          } else if (event === TRANSITIONS.convertToApplication.event) {
-            get().addNotification({
-              caseId: id,
-              caseName: c?.clientName,
-              title: "Application Submitted to Credit",
-              message: `${c?.clientName ?? id} converted to application. Review queue ready.`,
-              type: "general",
-              targetRoles: ["Branch Manager", "Regional Manager"],
-            });
-          }
-        },
-
-        recordFollowUp: (id, note, actor) =>
-          patch(
-            id,
-            (c) => ({
-              ...c,
-              followUpCount: c.followUpCount + 1,
-              lastFollowUp: get().currentDemoDate,
-            }),
-            { action: "Follow-up recorded", actor, note },
-          ),
-
-        recordVisit: (id, note, actor) =>
-          patch(
-            id,
-            (c) => ({
-              ...c,
-              visits: [...c.visits, { id: uid("v"), date: get().currentDemoDate, note }],
-            }),
-            { action: "Field visit recorded", actor, note },
-          ),
-
-        recordPayment: (id, amount, mode, actor) =>
-          patch(
-            id,
-            (c) => {
-              const date = get().currentDemoDate;
-              const cycle = date.slice(0, 7);
-              const history = c.emiHistory.some((e) => e.cycleMonth === cycle)
-                ? c.emiHistory.map((e) =>
-                    e.cycleMonth === cycle ? { ...e, paidDate: date, bounced: e.bounced } : e,
-                  )
-                : [...c.emiHistory, { cycleMonth: cycle, paidDate: date, bounced: false }];
-              return {
-                ...c,
-                emiHistory: history,
-                payments: [...c.payments, { id: uid("p"), amount, date, mode }],
-                outstanding: Math.max(0, c.outstanding - amount),
-                workflowStatus: "RESOLVED",
-                collectionQueue: "none",
-              };
-            },
-            { action: "Payment recorded", actor, note: `Amount received via ${mode}` },
-          ),
-
-        setNextFollowUp: (id, date, actor) =>
-          patch(id, (c) => ({ ...c, nextFollowUp: date }), {
-            action: "Next follow-up scheduled",
-            actor,
-            note: date,
-          }),
-
-        escalateCase: (id, reason, actor) => {
-          const c = get().cases.find((x) => x.id === id);
-          patch(
-            id,
-            (c) => ({
-              ...c,
-              escalated: true,
-              workflowStatus: c.stage === "collections" ? "ESCALATED" : c.workflowStatus,
-              priority: "Critical",
-            }),
-            { action: "Case escalated", actor, note: reason },
-          );
-          get().addNotification({
-            caseId: id,
-            caseName: c?.clientName,
-            title: "Case Escalated",
-            message: `${actor} escalated ${c?.clientName ?? id}: "${reason || "Immediate executive intervention required"}"`,
-            type: "escalation",
-            targetRoles: ["Branch Manager", "Regional Manager", "MD"],
-          });
-        },
-
-        resolveCase: (id, note, actor) => {
-          const c = get().cases.find((x) => x.id === id);
-          patch(
-            id,
-            (c) => ({
-              ...c,
-              workflowStatus: TRANSITIONS.resolve.status,
-              escalated: false,
-              collectionQueue: "none",
-            }),
-            { action: "Case resolved", actor, note },
-          );
-          get().addNotification({
-            caseId: id,
-            caseName: c?.clientName,
-            title: "Case Resolved",
-            message: `Delinquency/escalation on ${c?.clientName ?? id} marked resolved by ${actor}.`,
-            type: "general",
-            targetRoles: ["Officer", "Branch Manager", "Regional Manager"],
-            targetOfficer: c?.assignedOfficer,
-          });
-        },
-
-        assignCase: (id, officer, actor) => {
-          const c = get().cases.find((x) => x.id === id);
-          patch(id, (c) => ({ ...c, assignedOfficer: officer }), {
-            action: "Case assigned",
-            actor,
-            note: `Owner set to ${officer}`,
-          });
-          get().addNotification({
-            caseId: id,
-            caseName: c?.clientName,
-            title: "Case Assigned to You",
-            message: `Case ${c?.clientName ?? id} assigned to ${officer} by ${actor}.`,
-            type: "assignment",
-            targetRoles: ["Officer", "Branch Manager"],
-            targetOfficer: officer,
-          });
-        },
-
-        addNote: (id, text, actor) =>
-          patch(
-            id,
-            (c) => ({
-              ...c,
-              notes: [
-                { id: uid("n"), timestamp: stamp(get().currentDemoDate), actor, text },
-                ...c.notes,
-              ],
-            }),
-            { action: "Note added", actor, note: text },
-          ),
-
-        raiseQuery: (id, question, actor, actorRole) => {
-          const role = actorRole ?? get().currentRole;
-          let targetRoles: Role[];
-          if (role === "Officer") {
-            targetRoles = ["Branch Manager"];
-          } else if (role === "Branch Manager") {
-            targetRoles = ["Regional Manager"];
-          } else if (role === "Regional Manager") {
-            targetRoles = ["Branch Manager"];
-          } else {
-            targetRoles = ["Branch Manager"];
-          }
-
-          const queryId = uid("qry");
-          const newQuery: CaseQuery = {
-            id: queryId,
-            question,
-            raisedBy: actor,
-            raisedByRole: role,
-            raisedAt: stamp(get().currentDemoDate),
-            targetRoles,
-            status: "OPEN",
-          };
-
-          const noteObj = {
-            id: uid("n"),
-            timestamp: stamp(get().currentDemoDate),
-            actor,
-            text: `Query Raised: "${question}"`,
-          };
-
-          patch(
-            id,
-            (c) => ({
-              ...c,
-              queryRaised: true,
-              workflowStatus: "In Review",
-              queries: [newQuery, ...(c.queries ?? [])],
-              notes: [noteObj, ...c.notes],
-            }),
-            {
-              action: "Query raised",
-              actor,
-              note: question,
-            },
-          );
-
-          const c = get().cases.find((x) => x.id === id);
-          get().addNotification({
-            caseId: id,
-            caseName: c?.clientName,
-            title:
-              role === "Officer"
-                ? `Officer Query: ${actor}`
-                : role === "Branch Manager"
-                  ? `Branch Query: ${actor}`
-                  : "Query Raised",
-            message: `${actor} (${role}) submitted query to ${targetRoles.join(", ")} on ${c?.clientName ?? id}: "${question}"`,
-            type: "query",
-            targetRoles,
-            targetOfficer: c?.assignedOfficer,
-          });
-        },
-
-        resolveQuery: (id, queryId, resolution, actor, actorRole) => {
-          const role = actorRole ?? get().currentRole;
-          const caseObj = get().cases.find((x) => x.id === id);
-          const targetQ = caseObj?.queries?.find((q) => q.id === queryId);
-          if (targetQ) {
-            const isAuthor =
-              targetQ.raisedBy === actor ||
-              targetQ.raisedByRole === role ||
-              (role === "Officer" && targetQ.raisedBy === caseObj?.assignedOfficer);
-            if (isAuthor) {
-              console.warn("Self-resolution prevented: author cannot resolve their own query");
-              return;
-            }
-          }
-
-          const noteObj = {
-            id: uid("n"),
-            timestamp: stamp(get().currentDemoDate),
-            actor,
-            text: `Query Resolved: "${resolution}"`,
-          };
-
-          patch(
-            id,
-            (c) => {
-              const updatedQueries = (c.queries ?? []).map((q) =>
-                q.id === queryId
-                  ? {
-                      ...q,
-                      status: "RESOLVED" as const,
-                      resolution,
-                      resolvedBy: actor,
-                      resolvedByRole: role,
-                      resolvedAt: stamp(get().currentDemoDate),
-                    }
-                  : q,
-              );
-              const hasOpenQueries = updatedQueries.some((q) => q.status === "OPEN");
-              return {
-                ...c,
-                queryRaised: hasOpenQueries,
-                workflowStatus: hasOpenQueries ? c.workflowStatus : "In Review",
-                queries: updatedQueries,
-                notes: [noteObj, ...c.notes],
-              };
-            },
-            {
-              action: "Query resolved",
-              actor,
-              note: resolution,
-            },
-          );
-
-          const c = get().cases.find((x) => x.id === id);
-          const notifyRoles: Role[] =
-            role === "Branch Manager"
-              ? ["Officer", "Regional Manager"]
-              : role === "Regional Manager"
-                ? ["Branch Manager"]
-                : ["Branch Manager", "Regional Manager"];
-
-          get().addNotification({
-            caseId: id,
-            caseName: c?.clientName,
-            title: "Query Resolved",
-            message: `${actor} (${role}) resolved query on ${c?.clientName ?? id}: "${resolution}"`,
-            type: "query",
-            targetRoles: notifyRoles,
-            targetOfficer: c?.assignedOfficer,
-          });
-        },
-
-        reopenFile: (id, remarks, actor, actorRole) => {
-          const role = actorRole ?? get().currentRole;
-          if (role !== "Regional Manager" && role !== "MD" && role !== "Area Manager") {
-            console.warn("Only Regional Manager and MD can re-open files in SLA Attention");
-            return;
-          }
-
-          const noteObj = {
-            id: uid("n"),
-            timestamp: stamp(get().currentDemoDate),
-            actor,
-            text: `File Re-opened by ${role}: "${remarks}"`,
-          };
-
-          patch(
-            id,
-            (c) => ({
-              ...c,
-              stage: "disbursement",
-              workflowStatus: "Verification",
-              approvalDate: get().currentDemoDate, // Reset SLA clock with extension
-              reopenedAt: stamp(get().currentDemoDate),
-              reopenedBy: actor,
-              notes: [noteObj, ...c.notes],
-            }),
-            {
-              action: "File re-opened by executive authority",
-              actor,
-              note: remarks,
-            },
-          );
-
-          const c = get().cases.find((x) => x.id === id);
-          get().addNotification({
-            caseId: id,
-            caseName: c?.clientName,
-            title: "SLA File Re-Opened",
-            message: `${actor} (${role}) re-opened file for ${c?.clientName ?? id}: "${remarks}". Returned to Verification.`,
-            type: "general",
-            targetRoles: ["Branch Manager", "Officer"],
-            targetOfficer: c?.assignedOfficer,
-          });
-        },
-
-        toggleChecklist: (id, key, actor) =>
-          patch(
-            id,
-            (c) => ({
-              ...c,
-              checklist: c.checklist.map((i) => (i.key === key ? { ...i, done: !i.done } : i)),
-            }),
-            {
-              action: "Verification checklist updated",
-              actor,
-            },
-          ),
+    addNotification: (n) => {
+      const notif: AppNotification = {
+        ...n,
+        id: uid("notif"),
+        timestamp: stamp(get().currentDemoDate),
+        read: false,
       };
+      set((state) => ({ notifications: [notif, ...state.notifications] }));
     },
-    {
-      name: "nbfc-erp-storage-v4",
-      storage: createJSONStorage(() =>
-        typeof window !== "undefined" ? window.localStorage : dummyStorage,
-      ),
-      partialize: (state) => ({
-        isAuthenticated: state.isAuthenticated,
-        currentUser: state.currentUser,
-        cases: state.cases,
-        notifications: state.notifications,
-        currentRole: state.currentRole,
-        currentView: state.currentView,
-        currentDemoDate: state.currentDemoDate,
-        selectedCaseId: state.selectedCaseId,
-        activeDrawerTab: state.activeDrawerTab,
-      }),
-    },
-  ),
-);
 
-export const useCases = () => useAppStore((s) => s.cases);
-export const useSelectedCase = () =>
-  useAppStore((s) => s.cases.find((c) => c.id === s.selectedCaseId) ?? null);
+    markNotificationAsRead: (id) =>
+      set((state) => ({
+        notifications: state.notifications.map((n) => (n.id === id ? { ...n, read: true } : n)),
+      })),
+
+    markAllNotificationsAsRead: () =>
+      set((state) => ({
+        notifications: state.notifications.map((n) => ({ ...n, read: true })),
+      })),
+
+    createEnquiry: async (input) => {
+      // 1. Await DuckDB write FIRST (Zero Client-Side Faking)
+      const record = await createNewEnquiry({
+        data: {
+          name: input.clientName,
+          phone: input.contact,
+          amount: input.loanAmount,
+          emi_amount: input.emiAmount,
+          purpose: input.purpose,
+          loan_type: "Business",
+        },
+      });
+
+      // 2. Only upon confirmed database write, build the local state case
+      const mapped = mapLoanRowToCase(record);
+      const newCase: LoanCase = {
+        ...mapped,
+        clientName: input.clientName,
+        temperature: input.temperature,
+        branch: input.branch,
+        area: input.area,
+        region: input.region,
+        assignedOfficer: input.assignedOfficer,
+        workflowStatus: "New Enquiry",
+        applicant: {
+          ...mapped.applicant,
+          contact: input.contact,
+          business: input.purpose,
+          purpose: input.purpose,
+        },
+        history: [
+          {
+            id: uid("h"),
+            timestamp: stamp(get().currentDemoDate),
+            actor: input.assignedOfficer,
+            action: "Enquiry logged in Cassmart (DuckDB Confirmed)",
+          },
+        ],
+      };
+
+      set((state) => ({ cases: [newCase, ...state.cases] }));
+      return newCase;
+    },
+
+    moveCase: async (id, stage, status, event, note) => {
+      // 1. Await DuckDB stage update FIRST (Zero Client-Side Faking)
+      await updateLoanStage({ data: { loan_id: id, new_stage: stage } });
+
+      // If a note is provided, persist it to DuckDB as well
+      if (note) {
+        try {
+          await addLoanNote({
+            data: {
+              loan_id: id,
+              content: `${event}: ${note}`,
+              added_by_emp_id: get().currentRole,
+            },
+          });
+        } catch (err) {
+          console.warn(`[Cassmart] Note persistence warning for ${id}:`, err);
+        }
+      }
+
+      // 2. ONLY upon confirmed database update, update local React state and history
+      patch(
+        id,
+        (c) => ({
+          ...c,
+          stage,
+          workflowStatus: status,
+          applicationDate:
+            stage === "application" && !c.applicationDate
+              ? stamp(get().currentDemoDate).slice(0, 10)
+              : c.applicationDate,
+          approvalDate:
+            stage === "credit approved" && !c.approvalDate
+              ? stamp(get().currentDemoDate).slice(0, 10)
+              : c.approvalDate,
+          disbursedDate:
+            stage === "disbursed" && !c.disbursedDate
+              ? stamp(get().currentDemoDate).slice(0, 10)
+              : c.disbursedDate,
+          disbursedAmount: stage === "disbursed" ? c.loanAmount : c.disbursedAmount,
+        }),
+        { action: event, actor: get().currentRole, note },
+      );
+    },
+
+    recordFollowUp: (id, note, actor) =>
+      patch(
+        id,
+        (c) => ({
+          ...c,
+          followUpCount: c.followUpCount + 1,
+          lastFollowUp: stamp(get().currentDemoDate),
+        }),
+        { action: "Follow-up completed", actor, note },
+      ),
+
+    recordVisit: (id, note, actor) =>
+      patch(
+        id,
+        (c) => ({
+          ...c,
+          visits: [
+            ...c.visits,
+            { id: uid("v"), date: stamp(get().currentDemoDate).slice(0, 10), note },
+          ],
+        }),
+        { action: "Field visit recorded", actor, note },
+      ),
+
+    recordPayment: (id, amount, mode, actor) =>
+      patch(
+        id,
+        (c) => ({
+          ...c,
+          outstanding: Math.max(0, c.outstanding - amount),
+          payments: [
+            ...c.payments,
+            {
+              id: uid("p"),
+              amount,
+              date: stamp(get().currentDemoDate).slice(0, 10),
+              mode,
+            },
+          ],
+        }),
+        { action: `Payment collected (₹${amount.toLocaleString()})`, actor },
+      ),
+
+    setNextFollowUp: (id, date, actor) =>
+      patch(id, (c) => ({ ...c, nextFollowUp: date }), {
+        action: `Next touchpoint scheduled for ${date}`,
+        actor,
+      }),
+
+    escalateCase: (id, reason, actor) =>
+      patch(id, (c) => ({ ...c, escalated: true }), {
+        action: "Escalated for senior review",
+        actor,
+        note: reason,
+      }),
+
+    resolveCase: async (id, note, actor) => {
+      // 1. Await DuckDB resolution FIRST (Zero Client-Side Faking)
+      await resolveCaseDb({
+        data: {
+          loan_id: id,
+          note,
+          resolved_by: actor,
+        },
+      });
+
+      // 2. ONLY upon confirmed DuckDB write, update local state
+      patch(
+        id,
+        (c) => ({ ...c, escalated: false, workflowStatus: "RESOLVED", stage: "recovered" }),
+        { action: "Account resolved", actor, note },
+      );
+    },
+
+    assignCase: (id, officer, actor) =>
+      patch(id, (c) => ({ ...c, assignedOfficer: officer }), {
+        action: `Assigned to ${officer}`,
+        actor,
+      }),
+
+    addNote: async (id, text, actor) => {
+      // 1. Await DuckDB write FIRST (Zero Client-Side Faking)
+      const noteRecord = await addLoanNote({
+        data: {
+          loan_id: id,
+          content: text,
+          added_by_emp_id: actor,
+        },
+      });
+
+      // 2. ONLY upon confirmed DuckDB write, update local state
+      patch(
+        id,
+        (c) => ({
+          ...c,
+          notes: [
+            ...c.notes,
+            {
+              id: noteRecord.id,
+              timestamp: stamp(get().currentDemoDate),
+              actor,
+              text,
+            },
+          ],
+        }),
+        { action: "Note added", actor, note: text },
+      );
+    },
+
+    raiseQuery: async (id, question, actor, actorRole) => {
+      // 1. Persist to DuckDB FIRST (Zero Client-Side Faking)
+      const roleStr = actorRole ?? get().currentRole;
+      const qRecord = await createCaseQuery({
+        data: {
+          loan_id: id,
+          question,
+          raised_by: actor,
+          raised_by_role: roleStr,
+          target_roles: "Branch Manager,Officer",
+        },
+      });
+
+      const q: CaseQuery = {
+        id: qRecord.id,
+        question,
+        raisedBy: actor,
+        raisedByRole: roleStr,
+        raisedAt: stamp(get().currentDemoDate),
+        targetRoles: ["Branch Manager", "Officer"],
+        status: "OPEN",
+      };
+
+      // 2. ONLY upon confirmed database write, update local state
+      patch(
+        id,
+        (c) => ({
+          ...c,
+          queryRaised: true,
+          queries: [...c.queries, q],
+        }),
+        { action: "Query raised", actor, note: question },
+      );
+    },
+
+    resolveQuery: async (id, queryId, resolution, actor, actorRole) => {
+      // 1. Persist to DuckDB FIRST (Zero Client-Side Faking)
+      await resolveCaseQuery({
+        data: {
+          query_id: queryId,
+          resolution,
+          resolved_by: actor,
+          resolved_by_role: actorRole ?? get().currentRole,
+        },
+      });
+
+      // 2. ONLY upon confirmed database write, update local state
+      patch(
+        id,
+        (c) => {
+          const queries = c.queries.map((q) =>
+            q.id === queryId
+              ? {
+                  ...q,
+                  status: "RESOLVED" as const,
+                  resolution,
+                  resolvedBy: actor,
+                  resolvedByRole: actorRole ?? get().currentRole,
+                  resolvedAt: stamp(get().currentDemoDate),
+                }
+              : q,
+          );
+          const hasOpen = queries.some((q) => q.status === "OPEN");
+          return {
+            ...c,
+            queryRaised: hasOpen,
+            queries,
+          };
+        },
+        { action: "Query resolved", actor, note: resolution },
+      );
+    },
+
+    reopenFile: (id, remarks, actor, actorRole) =>
+      patch(
+        id,
+        (c) => ({
+          ...c,
+          reopenedAt: stamp(get().currentDemoDate),
+          reopenedBy: actor,
+          workflowStatus: "Verification",
+          stage: "credit approved",
+        }),
+        { action: "Case re-opened", actor, note: remarks },
+      ),
+
+    toggleChecklist: (id, key, actor) =>
+      patch(
+        id,
+        (c) => ({
+          ...c,
+          checklist: c.checklist.map((item) =>
+            item.key === key ? { ...item, done: !item.done } : item,
+          ),
+        }),
+        { action: `Checklist item ${key} toggled`, actor },
+      ),
+  };
+});

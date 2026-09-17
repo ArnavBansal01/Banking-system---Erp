@@ -5,6 +5,9 @@ import {
   Building2,
   Landmark,
   UserCheck,
+  Briefcase,
+  Layers,
+  Sliders,
   Lock,
   Mail,
   ArrowRight,
@@ -12,7 +15,6 @@ import {
   EyeOff,
   ChevronDown,
   Check,
-  RotateCcw,
   Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -20,6 +22,7 @@ import { useAppStore, ROLE_PROFILES, ROLE_DEFAULT_VIEWS } from "@/store/useAppSt
 import type { Role } from "@/types/loan";
 import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/layout/ThemeToggle";
+import { PoweredByGlamarode } from "@/components/layout/PoweredByGlamarode";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -39,13 +42,31 @@ interface RoleOption {
 
 const ROLE_OPTIONS: RoleOption[] = [
   {
-    role: "MD",
-    name: ROLE_PROFILES["MD"].name,
-    title: "Managing Director & CEO",
-    badge: "MD",
-    badgeStyle: "bg-purple-500/15 text-purple-400 border-purple-500/30 dark:text-purple-300",
-    icon: Crown,
-    iconBg: "bg-purple-500/20 text-purple-400 ring-purple-500/30",
+    role: "Officer",
+    name: ROLE_PROFILES["Officer"].name,
+    title: "Senior Credit & Field Officer",
+    badge: "OFFICER",
+    badgeStyle: "bg-amber-500/15 text-amber-400 border-amber-500/30 dark:text-amber-300",
+    icon: UserCheck,
+    iconBg: "bg-amber-500/20 text-amber-400 ring-amber-500/30",
+  },
+  {
+    role: "Branch Manager",
+    name: ROLE_PROFILES["Branch Manager"].name,
+    title: "Branch Approver & Hub Lead",
+    badge: "BM",
+    badgeStyle: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 dark:text-emerald-300",
+    icon: Landmark,
+    iconBg: "bg-emerald-500/20 text-emerald-400 ring-emerald-500/30",
+  },
+  {
+    role: "Area Manager",
+    name: ROLE_PROFILES["Area Manager"].name,
+    title: "Area Operations Lead",
+    badge: "AM",
+    badgeStyle: "bg-blue-500/15 text-blue-400 border-blue-500/30 dark:text-blue-300",
+    icon: Layers,
+    iconBg: "bg-blue-500/20 text-blue-400 ring-blue-500/30",
   },
   {
     role: "Regional Manager",
@@ -57,69 +78,90 @@ const ROLE_OPTIONS: RoleOption[] = [
     iconBg: "bg-cyan-500/20 text-cyan-400 ring-cyan-500/30",
   },
   {
-    role: "Branch Manager",
-    name: ROLE_PROFILES["Branch Manager"].name,
-    title: "Senior Branch Manager",
-    badge: "BM",
-    badgeStyle: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30 dark:text-emerald-300",
-    icon: Landmark,
-    iconBg: "bg-emerald-500/20 text-emerald-400 ring-emerald-500/30",
+    role: "General Manager",
+    name: ROLE_PROFILES["General Manager"].name,
+    title: "General Manager — Operations",
+    badge: "GM",
+    badgeStyle: "bg-indigo-500/15 text-indigo-400 border-indigo-500/30 dark:text-indigo-300",
+    icon: Sliders,
+    iconBg: "bg-indigo-500/20 text-indigo-400 ring-indigo-500/30",
   },
   {
-    role: "Officer",
-    name: ROLE_PROFILES["Officer"].name,
-    title: "Senior Credit & Field Officer",
-    badge: "OFFICER",
-    badgeStyle: "bg-amber-500/15 text-amber-400 border-amber-500/30 dark:text-amber-300",
-    icon: UserCheck,
-    iconBg: "bg-amber-500/20 text-amber-400 ring-amber-500/30",
+    role: "Business Head",
+    name: ROLE_PROFILES["Business Head"].name,
+    title: "Head of Retail Lending",
+    badge: "BH",
+    badgeStyle: "bg-orange-500/15 text-orange-400 border-orange-500/30 dark:text-orange-300",
+    icon: Briefcase,
+    iconBg: "bg-orange-500/20 text-orange-400 ring-orange-500/30",
+  },
+  {
+    role: "MD",
+    name: ROLE_PROFILES["MD"].name,
+    title: "Managing Director & CEO",
+    badge: "MD",
+    badgeStyle: "bg-purple-500/15 text-purple-400 border-purple-500/30 dark:text-purple-300",
+    icon: Crown,
+    iconBg: "bg-purple-500/20 text-purple-400 ring-purple-500/30",
   },
 ];
 
 export function LoginPage() {
-  const { login, resetData } = useAppStore();
+  const { login } = useAppStore();
   const [selectedRole, setSelectedRole] = useState<Role>("Officer");
+  const [email, setEmail] = useState<string>(ROLE_PROFILES["Officer"].email);
+  const [password, setPassword] = useState<string>("pass123");
   const [showPassword, setShowPassword] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
 
-  const currentOption = ROLE_OPTIONS.find((r) => r.role === selectedRole) ?? ROLE_OPTIONS[3];
+  const currentOption: RoleOption =
+    ROLE_OPTIONS.find((r) => r.role === selectedRole) ?? (ROLE_OPTIONS[0] as RoleOption);
   const currentProfile = ROLE_PROFILES[selectedRole];
   const CurrentIcon = currentOption.icon;
 
-  const handleQuickSignIn = () => {
+  const handleRoleSelect = (role: Role) => {
+    setSelectedRole(role);
+    setEmail(
+      ROLE_PROFILES[role]?.email ?? `${role.toLowerCase().replace(/\s+/g, ".")}@cassmart.in`,
+    );
+  };
+
+  const handleSignIn = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (isValidating) return;
     setIsValidating(true);
 
     setTimeout(() => {
-      login(selectedRole);
+      login(selectedRole, email);
       const view = ROLE_DEFAULT_VIEWS[selectedRole] ?? "EMMS";
       toast.success(`Signed in as ${currentProfile.name}`, {
-        description: `${selectedRole} • ${view} workspace ready`,
+        description: `${selectedRole} • ${view} workspace active`,
       });
-    }, 450);
+      setIsValidating(false);
+    }, 300);
   };
 
   return (
     <div className="h-screen max-h-screen overflow-hidden bg-background text-foreground flex flex-col justify-between selection:bg-primary/20 selection:text-primary relative">
-      {/* Subtle ambient lighting */}
+      {/* Ambient background glow */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute top-0 left-1/2 -translate-x-1/2 size-[500px] rounded-full bg-primary/10 blur-[130px]" />
       </div>
 
-      {/* Top Header - Compact */}
+      {/* Top Header */}
       <header className="relative z-10 w-full border-b border-border/80 bg-background/80 backdrop-blur-xl shrink-0">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <span className="grid size-8 place-items-center rounded-lg bg-primary/15 text-primary ring-1 ring-primary/30">
               <Landmark className="size-4" aria-hidden />
             </span>
-            <span className="text-sm font-extrabold tracking-tight text-foreground">NBFC</span>
+            <span className="text-sm font-extrabold tracking-tight text-foreground">Cassmart</span>
           </div>
 
           <div className="flex items-center gap-2.5">
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-border/60 bg-surface/60 text-[11px] text-muted-foreground">
               <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>Online</span>
+              <span>DuckDB Connected</span>
             </div>
 
             <ThemeToggle />
@@ -127,9 +169,9 @@ export function LoginPage() {
         </div>
       </header>
 
-      {/* Center Compact Card - Perfectly Fits Single Screen */}
+      {/* Center Sign In Card */}
       <main className="relative z-10 flex-1 flex items-center justify-center p-3 sm:p-4 min-h-0">
-        <div className="w-full max-w-[380px]">
+        <div className="w-full max-w-[390px]">
           <div className="rounded-2xl border border-border/80 bg-surface/85 backdrop-blur-2xl p-5 sm:p-6 shadow-2xl space-y-4">
             {/* Header / Intro */}
             <div className="text-center space-y-1">
@@ -138,15 +180,17 @@ export function LoginPage() {
               </div>
               <h1 className="text-xl font-bold tracking-tight text-foreground">Sign In</h1>
               <p className="text-xs text-muted-foreground">
-                Select your role to access the banking dashboard
+                Select your role and enter your credentials
               </p>
             </div>
 
-            {/* Form controls - Compact & Elegant */}
-            <div className="space-y-3">
+            {/* Form controls */}
+            <form onSubmit={handleSignIn} className="space-y-3">
               {/* Role Selection Dropdown Menu */}
               <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-foreground">Select Role</label>
+                <label className="block text-[11px] font-bold text-foreground">
+                  Designated Role
+                </label>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button
@@ -179,7 +223,7 @@ export function LoginPage() {
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span
                           className={cn(
-                            "rounded-md border px-1.5 py-0.2 text-[9px] font-black uppercase",
+                            "rounded-md border px-1.5 py-0.5 text-[9px] font-black uppercase",
                             currentOption.badgeStyle,
                           )}
                         >
@@ -193,7 +237,7 @@ export function LoginPage() {
                   <DropdownMenuContent
                     align="center"
                     sideOffset={4}
-                    className="w-[340px] rounded-xl border border-border bg-popover/95 backdrop-blur-2xl p-1.5 shadow-2xl z-50 space-y-0.5"
+                    className="w-[340px] max-h-[300px] overflow-y-auto rounded-xl border border-border bg-popover/95 backdrop-blur-2xl p-1.5 shadow-2xl z-50 space-y-0.5"
                   >
                     {ROLE_OPTIONS.map((opt) => {
                       const isSelected = selectedRole === opt.role;
@@ -201,7 +245,7 @@ export function LoginPage() {
                       return (
                         <DropdownMenuItem
                           key={opt.role}
-                          onClick={() => setSelectedRole(opt.role)}
+                          onClick={() => handleRoleSelect(opt.role)}
                           className={cn(
                             "flex items-center justify-between gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold cursor-pointer outline-none transition-colors",
                             isSelected
@@ -229,7 +273,7 @@ export function LoginPage() {
                           <div className="flex items-center gap-1.5 shrink-0">
                             <span
                               className={cn(
-                                "rounded-md border px-1.5 py-0.2 text-[9px] font-black uppercase",
+                                "rounded-md border px-1.5 py-0.5 text-[9px] font-black uppercase",
                                 opt.badgeStyle,
                               )}
                             >
@@ -244,7 +288,7 @@ export function LoginPage() {
                 </DropdownMenu>
               </div>
 
-              {/* Assigned User Info strip - Compact */}
+              {/* Assigned User Info strip */}
               <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-background/60 border border-border/60 text-[11px]">
                 <div className="flex items-center gap-1.5 truncate">
                   <span className="grid size-5 place-items-center rounded bg-primary/20 text-[9px] font-black text-primary shrink-0">
@@ -259,36 +303,32 @@ export function LoginPage() {
                 </span>
               </div>
 
-              {/* Email Address (Auto-filled) */}
+              {/* Editable Email Address */}
               <div className="space-y-1">
-                <div className="flex items-center justify-between text-[11px]">
-                  <label className="font-bold text-foreground">Email Address</label>
-                  <span className="text-[10px] text-muted-foreground font-mono">Auto-filled</span>
-                </div>
+                <label className="block text-[11px] font-bold text-foreground">Email Address</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
                   <input
                     type="text"
-                    readOnly
-                    value={currentProfile.email}
-                    className="w-full rounded-lg border border-border bg-background/60 pl-8 pr-2.5 py-1.5 text-xs font-mono text-foreground focus:outline-none cursor-default"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Enter email address"
+                    className="w-full rounded-lg border border-border bg-background/80 pl-8 pr-2.5 py-1.5 text-xs font-mono text-foreground focus:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary/40 transition-colors"
                   />
                 </div>
               </div>
 
-              {/* Password (Auto-filled) */}
+              {/* Editable Password */}
               <div className="space-y-1">
-                <div className="flex items-center justify-between text-[11px]">
-                  <label className="font-bold text-foreground">Password</label>
-                  <span className="text-[10px] text-emerald-400 font-mono">Auto-validated</span>
-                </div>
+                <label className="block text-[11px] font-bold text-foreground">Password</label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
                   <input
                     type={showPassword ? "text" : "password"}
-                    readOnly
-                    value="BankingSecure2026!"
-                    className="w-full rounded-lg border border-border bg-background/60 pl-8 pr-8 py-1.5 text-xs font-mono text-foreground focus:outline-none cursor-default"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter password"
+                    className="w-full rounded-lg border border-border bg-background/80 pl-8 pr-8 py-1.5 text-xs font-mono text-foreground focus:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary/40 transition-colors"
                   />
                   <button
                     type="button"
@@ -301,13 +341,12 @@ export function LoginPage() {
                 </div>
               </div>
 
-              {/* Quick Sign In Action Button - Compact & Punchy */}
+              {/* Sign In Action Button */}
               <button
-                type="button"
-                onClick={handleQuickSignIn}
+                type="submit"
                 disabled={isValidating}
                 className={cn(
-                  "w-full rounded-xl py-2.5 px-4 text-xs font-bold transition-all duration-200 cursor-pointer shadow-md mt-1",
+                  "w-full rounded-xl py-2.5 px-4 text-xs font-bold transition-all duration-200 cursor-pointer shadow-md mt-2",
                   "bg-primary text-primary-foreground hover:brightness-110 active:scale-[0.99] flex items-center justify-center gap-2",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                   isValidating && "opacity-90 cursor-wait",
@@ -321,34 +360,20 @@ export function LoginPage() {
                 ) : (
                   <>
                     <Sparkles className="size-3.5" />
-                    <span>Quick Sign In as {selectedRole}</span>
+                    <span>Sign In as {selectedRole}</span>
                     <ArrowRight className="size-3.5 ml-0.5" />
                   </>
                 )}
               </button>
-
-              {/* Centered Reset Demo Data Button */}
-              <div className="pt-1 flex items-center justify-center">
-                <button
-                  type="button"
-                  onClick={() => {
-                    resetData();
-                    toast.success("Demo data reset");
-                  }}
-                  className="hover:text-primary transition-colors flex items-center gap-1.5 text-[10.5px] text-muted-foreground cursor-pointer"
-                >
-                  <RotateCcw className="size-2.5" />
-                  <span>Reset Demo Data</span>
-                </button>
-              </div>
-            </div>
+            </form>
           </div>
         </div>
       </main>
 
-      {/* Clean Bottom Footer - Minimal */}
-      <footer className="relative z-10 w-full border-t border-border/60 bg-background/60 backdrop-blur-md py-2 text-center text-[11px] text-muted-foreground shrink-0">
-        <p>© 2026 NBFC Banking Application. Secure Role-Based Access.</p>
+      {/* Clean Bottom Footer */}
+      <footer className="relative z-10 w-full border-t border-border/60 bg-background/60 backdrop-blur-md py-2.5 px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-center text-[11px] text-muted-foreground shrink-0">
+        <p>© 2026 Cassmart Micro Foundations. Persistent Session & Role-Based Access.</p>
+        <PoweredByGlamarode variant="oval" />
       </footer>
     </div>
   );

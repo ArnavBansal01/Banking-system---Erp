@@ -40,19 +40,6 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   const router = useRouter();
 
   const handleReset = () => {
-    try {
-      const stored = localStorage.getItem("nbfc-erp-storage-v4");
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed?.state) {
-          parsed.state.currentView = "EMMS";
-          parsed.state.selectedCaseId = null;
-          localStorage.setItem("nbfc-erp-storage-v4", JSON.stringify(parsed));
-        }
-      }
-    } catch {
-      // Storage parsing failed, continue with router invalidation
-    }
     router.invalidate();
     reset();
   };
@@ -91,11 +78,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "NBFC — Loan Origination, Operations & Collections" },
+      { title: "Cassmart — Loan Origination, Operations & Collections" },
       {
         name: "description",
         content:
-          "Enterprise NBFC platform covering enquiry, credit, operations, disbursement and collections in one connected case lifecycle.",
+          "Cassmart Micro Foundations enterprise platform covering enquiry, credit, operations, disbursement and collections in one connected case lifecycle.",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

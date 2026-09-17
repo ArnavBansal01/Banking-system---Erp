@@ -66,7 +66,8 @@ function tabsFor(c: LoanCase): string[] {
   switch (c.stage) {
     case "enquiry":
       return ["Overview", "Loan Details", "Queries", "Documents", "History"];
-    case "credit_review":
+    case "application":
+    case "credit approved":
       return [
         "Overview",
         "Loan Details",
@@ -76,7 +77,7 @@ function tabsFor(c: LoanCase): string[] {
         "Financials",
         "History",
       ];
-    case "disbursement":
+    case "disbursed":
       return [
         "Overview",
         "Loan Details",
@@ -142,109 +143,120 @@ export function CaseDrawer() {
 
   const allow = (a: Action) => (c ? can(currentRole, a, c, currentDemoDate) : false);
 
-  const runAction = () => {
+  const runAction = async () => {
     if (!c) return;
-    switch (modal) {
-      case "convert":
-        moveCase(
-          c.id,
-          TRANSITIONS.convertToApplication.stage,
-          TRANSITIONS.convertToApplication.status,
-          TRANSITIONS.convertToApplication.event,
-          "Converted from enquiry, routed to credit review",
-        );
-        toast.success("Converted to application", { description: "Case is now in credit review" });
-        break;
-      case "approve":
-        moveCase(
-          c.id,
-          TRANSITIONS.approve.stage,
-          TRANSITIONS.approve.status,
-          TRANSITIONS.approve.event,
-          text || undefined,
-        );
-        toast.success("Credit approved", { description: "Case handed over to Operations" });
-        break;
-      case "reject":
-        moveCase(
-          c.id,
-          TRANSITIONS.reject.stage,
-          TRANSITIONS.reject.status,
-          TRANSITIONS.reject.event,
-          text,
-        );
-        toast.error("Application rejected");
-        break;
-      case "query":
-        raiseQuery(c.id, text, activeActor, currentRole);
-        toast.message("Query raised", { description: "Routed to responsible authorities" });
-        break;
-      case "markReady":
-        moveCase(
-          c.id,
-          TRANSITIONS.markReady.stage,
-          TRANSITIONS.markReady.status,
-          TRANSITIONS.markReady.event,
-        );
-        toast.success("Marked ready for disbursement");
-        break;
-      case "disburse":
-        moveCase(
-          c.id,
-          TRANSITIONS.disburse.stage,
-          TRANSITIONS.disburse.status,
-          TRANSITIONS.disburse.event,
-          `${inr(c.loanAmount)} released to ${c.terms.bankAccount}`,
-        );
-        toast.success("Funds disbursed", {
-          description: "Loan is active and in the collection cycle",
-        });
-        break;
-      case "followup":
-        recordFollowUp(c.id, text, currentRole);
-        toast.success("Follow-up recorded");
-        break;
-      case "visit":
-        recordVisit(c.id, text, currentRole);
-        toast.success("Field visit recorded");
-        break;
-      case "payment":
-        recordPayment(c.id, c.emiAmount, "NACH", currentRole);
-        toast.success("Payment recorded", { description: `${inr(c.emiAmount)} received` });
-        break;
-      case "nextFollowUp":
-        setNextFollowUp(c.id, date, currentRole);
-        toast.success("Next follow-up set", { description: longDate(date) });
-        break;
-      case "escalate":
-        escalateCase(c.id, text, currentRole);
-        toast.error("Case escalated");
-        break;
-      case "resolve":
-        resolveCase(c.id, text, currentRole);
-        toast.success("Case resolved");
-        break;
-      case "assign":
-        assignCase(c.id, officer, currentRole);
-        toast.success(`Assigned to ${officer}`);
-        break;
-      case "note":
-        addNote(c.id, text, currentRole);
-        toast.success("Note added");
-        break;
-      case "reopenFile":
-        reopenFile(c.id, text || "Executive SLA extension granted", activeActor, currentRole);
-        toast.success("File re-opened", {
-          description: "File returned to active branch verification checklist",
-        });
-        break;
-      default:
-        break;
+    try {
+      switch (modal) {
+        case "convert":
+          await moveCase(
+            c.id,
+            TRANSITIONS.convertToApplication.stage,
+            TRANSITIONS.convertToApplication.status,
+            TRANSITIONS.convertToApplication.event,
+            "Converted from enquiry, routed to credit review",
+          );
+          toast.success("Converted to application", {
+            description: "Case is now in credit review",
+          });
+          break;
+        case "approve":
+          await moveCase(
+            c.id,
+            TRANSITIONS.approve.stage,
+            TRANSITIONS.approve.status,
+            TRANSITIONS.approve.event,
+            text || undefined,
+          );
+          toast.success("Credit approved", { description: "Case handed over to Operations" });
+          break;
+        case "reject":
+          await moveCase(
+            c.id,
+            TRANSITIONS.reject.stage,
+            TRANSITIONS.reject.status,
+            TRANSITIONS.reject.event,
+            text,
+          );
+          toast.error("Application rejected");
+          break;
+        case "query":
+          raiseQuery(c.id, text, activeActor, currentRole);
+          toast.message("Query raised", { description: "Routed to responsible authorities" });
+          break;
+        case "markReady":
+          await moveCase(
+            c.id,
+            TRANSITIONS.markReady.stage,
+            TRANSITIONS.markReady.status,
+            TRANSITIONS.markReady.event,
+          );
+          toast.success("Marked ready for disbursement");
+          break;
+        case "disburse":
+          await moveCase(
+            c.id,
+            TRANSITIONS.disburse.stage,
+            TRANSITIONS.disburse.status,
+            TRANSITIONS.disburse.event,
+            `${inr(c.loanAmount)} released to ${c.terms.bankAccount}`,
+          );
+          toast.success("Funds disbursed", {
+            description: "Loan is active and in the collection cycle",
+          });
+          break;
+        case "followup":
+          recordFollowUp(c.id, text, currentRole);
+          toast.success("Follow-up recorded");
+          break;
+        case "visit":
+          recordVisit(c.id, text, currentRole);
+          toast.success("Field visit recorded");
+          break;
+        case "payment":
+          recordPayment(c.id, c.emiAmount, "NACH", currentRole);
+          toast.success("Payment recorded", { description: `${inr(c.emiAmount)} received` });
+          break;
+        case "nextFollowUp":
+          setNextFollowUp(c.id, date, currentRole);
+          toast.success("Next follow-up set", { description: longDate(date) });
+          break;
+        case "escalate":
+          escalateCase(c.id, text, currentRole);
+          toast.error("Case escalated");
+          break;
+        case "resolve":
+          await resolveCase(c.id, text, currentRole);
+          toast.success("Case resolved");
+          break;
+        case "assign":
+          assignCase(c.id, officer, currentRole);
+          toast.success(`Assigned to ${officer}`);
+          break;
+        case "note":
+          await addNote(c.id, text, currentRole);
+          toast.success("Note added");
+          break;
+        case "reopenFile":
+          reopenFile(c.id, text || "Executive SLA extension granted", activeActor, currentRole);
+          toast.success("File re-opened", {
+            description: "File returned to active branch verification checklist",
+          });
+          break;
+        default:
+          break;
+      }
+      closeModal();
+    } catch (error) {
+      toast.error("Operation failed", {
+        description: (error as Error).message || "Database update failed",
+      });
     }
-    closeModal();
   };
 
-  const collection = c && c.stage === "collections" ? getCollectionState(c, currentDemoDate) : null;
+  const collection =
+    c && (c.stage === "active loan" || c.stage === "disbursed")
+      ? getCollectionState(c, currentDemoDate)
+      : null;
   const sla = c ? getApplicationSla(c, currentDemoDate) : null;
   const canViewSla = can(currentRole, "viewSlaAttention");
 
@@ -345,17 +357,17 @@ export function CaseDrawer() {
                   <div className="flex items-center gap-2 text-destructive font-extrabold text-xs">
                     <AlertTriangle className="size-4 shrink-0" />
                     <span>
-                      {c.stage === "credit_review"
+                      {c.stage === "application"
                         ? "Application SLA Breached (>15 Days)"
                         : "Post-Approval SLA Breached (>15 Days)"}
                     </span>
                   </div>
                   <p className="text-xs text-foreground leading-relaxed">
-                    {c.stage === "credit_review"
+                    {c.stage === "application"
                       ? `This loan application was submitted on ${c.applicationDate ?? "over 15 days ago"} (${sla ? `Day ${sla.day}` : ">15 days"}). Because 15 days have elapsed without credit approval, sanction authority has escalated exclusively to Regional Manager and MD.`
                       : `This loan was approved on ${c.approvalDate ?? "over 15 days ago"}, but document verification was not completed within the 15-day window. The file is locked under Regional Manager & MD oversight.`}
                   </p>
-                  {c.stage === "credit_review" ? (
+                  {c.stage === "application" ? (
                     allow("approve") ? (
                       <p className="text-[11px] font-semibold text-primary">
                         ✓ As {currentRole}, you hold executive authority to approve or sanction this
@@ -385,7 +397,14 @@ export function CaseDrawer() {
                 demoDate={currentDemoDate}
                 onToggleChecklist={(key) => toggleChecklist(c.id, key, currentRole)}
                 canVerify={allow("verify")}
-                onAddNote={(noteText) => addNote(c.id, noteText, currentRole)}
+                onAddNote={async (noteText) => {
+                  try {
+                    await addNote(c.id, noteText, currentRole);
+                    toast.success("Note added to DuckDB");
+                  } catch (err) {
+                    toast.error("Failed to add note", { description: (err as Error).message });
+                  }
+                }}
                 canAddNote={allow("addNote")}
                 onRaiseQuery={(q) => raiseQuery(c.id, q, activeActor, currentRole)}
                 onResolveQuery={(qid, res) =>
@@ -435,7 +454,7 @@ export function CaseDrawer() {
                 </>
               )}
 
-              {c.stage === "credit_review" && (
+              {(c.stage === "application" || c.stage === "credit approved") && (
                 <>
                   {allow("approve") && (
                     <ActionButton variant="primary" size="sm" onClick={() => setModal("approve")}>
@@ -475,7 +494,7 @@ export function CaseDrawer() {
                 </>
               )}
 
-              {c.stage === "disbursement" && (
+              {(c.stage === "credit approved" || c.stage === "disbursed") && (
                 <>
                   {c.workflowStatus === "SLA Attention" && allow("reopenFile") && (
                     <ActionButton
@@ -504,7 +523,7 @@ export function CaseDrawer() {
                 </>
               )}
 
-              {c.stage === "collections" && (
+              {(c.stage === "active loan" || c.stage === "disbursed") && (
                 <>
                   {allow("recordPayment") && (
                     <ActionButton variant="primary" size="sm" onClick={() => setModal("payment")}>
@@ -728,7 +747,8 @@ function DrawerBody({
   const { currentRole, setDrawerTab } = useAppStore();
   const scope = getScope(currentRole);
   const activeActor = scope?.officer ?? currentRole;
-  const collection = c.stage === "collections" ? getCollectionState(c, demoDate) : null;
+  const collection =
+    c.stage === "active loan" || c.stage === "disbursed" ? getCollectionState(c, demoDate) : null;
 
   if (tab === "Queries") {
     return (
@@ -1301,22 +1321,10 @@ function QueriesTabContent({
   const handleResolve = (queryId: string) => {
     const targetQ = queries.find((x) => x.id === queryId);
     if (!targetQ || !resolutionText.trim() || !onResolveQuery) return;
-    const isAuthor =
-      targetQ.raisedBy === currentRole ||
-      targetQ.raisedByRole === currentRole ||
-      targetQ.raisedBy === activeActor ||
-      (currentRole === "Officer" &&
-        (targetQ.raisedByRole === "Officer" || targetQ.raisedBy === c.assignedOfficer));
-    if (isAuthor) {
-      toast.error(
-        "You cannot resolve your own query. Clarification must come from the designated authority.",
-      );
-      return;
-    }
     onResolveQuery(queryId, resolutionText.trim());
     setResolutionText("");
     setResolvingId(null);
-    toast.success("Query resolved and status updated");
+    toast.success("Query resolved and status updated in DuckDB");
   };
 
   return (

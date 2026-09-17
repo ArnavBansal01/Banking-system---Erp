@@ -102,7 +102,7 @@ export interface SlaState {
 /** Application SLA only applies while a case is still being processed. Day of conversion is Day 1. */
 export function getApplicationSla(c: LoanCase, demoDate: string): SlaState | null {
   if (!c.applicationDate) return null;
-  if (c.stage === "collections" || c.stage === "closed") return null;
+  if (c.stage === "active loan" || c.stage === "recovered") return null;
   const a = new Date(c.applicationDate + "T00:00:00Z").getTime();
   const now = new Date(demoDate + "T00:00:00Z").getTime();
   const elapsedDays = Math.max(0, Math.floor((now - a) / 86400000));
@@ -127,7 +127,12 @@ export interface PostApprovalSlaState {
  * If > 15 days have elapsed without being marked ready, SLA is breached.
  */
 export function getPostApprovalSla(c: LoanCase, demoDate: string): PostApprovalSlaState | null {
-  if (c.stage !== "disbursement" && c.workflowStatus !== "SLA Attention") return null;
+  if (
+    c.stage !== "credit approved" &&
+    c.stage !== "disbursed" &&
+    c.workflowStatus !== "SLA Attention"
+  )
+    return null;
   const anchorDate = c.approvalDate ?? c.applicationDate;
   if (!anchorDate) return null;
 
@@ -149,11 +154,11 @@ export function getPostApprovalSla(c: LoanCase, demoDate: string): PostApprovalS
 /** Determines if a case has breached its 15-day application or post-approval SLA */
 export function isCaseSlaBreached(c: LoanCase, demoDate: string): boolean {
   if (c.workflowStatus === "SLA Attention") return true;
-  if (c.stage === "credit_review") {
+  if (c.stage === "application") {
     const sla = getApplicationSla(c, demoDate);
     return Boolean(sla && (sla.isBreached || sla.day > APPLICATION_SLA_DAYS));
   }
-  if (c.stage === "disbursement") {
+  if (c.stage === "credit approved" || c.stage === "disbursed") {
     const sla = getPostApprovalSla(c, demoDate);
     return Boolean(sla && sla.isBreached);
   }

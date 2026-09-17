@@ -1,10 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CalendarClock, Flame, Plus, Target, TrendingUp, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useAppStore } from "@/store/useAppStore";
 import { useVisibleCases } from "@/modules/useVisibleCases";
 import { computeMetrics } from "@/utils/metrics";
-import { COLUMN_LABELS, EMMS_COLUMNS } from "@/utils/transitions";
 import { can } from "@/utils/permissions";
 import { getScope } from "@/utils/scope";
 import { inr, shortDate } from "@/utils/format";
@@ -16,13 +15,17 @@ import {
   ActionButton,
   ConfirmationModal,
   EmptyState,
-  FilterBar,
-  SearchBar,
   SelectField,
   TextField,
 } from "@/components/ui/Controls";
 import { DataList } from "@/components/ui/DataList";
 import { PriorityBadge, TemperatureBadge } from "@/components/ui/Badges";
+import type { Stage } from "@/types/loan";
+
+const EMMS_STAGE_COLUMNS: { stage: Stage; label: string; accent: "info" | "success" }[] = [
+  { stage: "enquiry", label: "Enquiries", accent: "info" },
+  { stage: "application", label: "Converted Applications", accent: "success" },
+];
 
 export function EmmsModule() {
   const {
@@ -34,13 +37,18 @@ export function EmmsModule() {
     setFilterPriority,
     selectCase,
     createEnquiry,
-    setView,
-    setDrawerTab,
+    fetchAllLoans,
+    updateLoanStageAction,
   } = useAppStore();
+
   const visible = useVisibleCases();
   const scope = getScope(currentRole);
   const metrics = computeMetrics(visible, currentDemoDate);
   const [filterTemp, setFilterTemp] = useState<"Hot" | "Warm" | "Cold" | null>(null);
+
+  useEffect(() => {
+    fetchAllLoans();
+  }, [fetchAllLoans]);
 
   const allEnquiries = visible.filter((c) => c.stage === "enquiry");
   const enquiries = allEnquiries.filter((c) => !filterTemp || c.temperature === filterTemp);
@@ -53,29 +61,44 @@ export function EmmsModule() {
   const [purpose, setPurpose] = useState("Working capital");
   const [temperature, setTemperature] = useState("Warm");
 
-  const submit = () => {
+  const submit = async () => {
     const loanAmount = Number(amount) || 0;
     if (!name.trim() || loanAmount <= 0) {
       toast.error("Enter a customer name and loan amount");
       return;
     }
-    createEnquiry({
-      clientName: name.trim(),
-      loanAmount,
-      emiAmount: Math.round(loanAmount / 24),
-      temperature: temperature as "Hot" | "Warm" | "Cold",
-      branch: scope.branch ?? "Chandigarh",
-      area: scope.area ?? "Punjab",
-      region: scope.region ?? "North",
-      assignedOfficer: scope.officer ?? "Arnav",
-      purpose,
-      contact: contact || "+91 98xxx xxxxx",
-    });
-    toast.success("Enquiry created", { description: name.trim() });
-    setFormOpen(false);
-    setName("");
-    setAmount("");
-    setContact("");
+    try {
+      const createdCase = await createEnquiry({
+        clientName: name.trim(),
+        loanAmount,
+        emiAmount: Math.round(loanAmount / 24),
+        temperature: temperature as "Hot" | "Warm" | "Cold",
+        branch: scope.branch ?? "Chandigarh",
+        area: scope.area ?? "Punjab",
+        region: scope.region ?? "North",
+        assignedOfficer: scope.officer ?? "Arnav",
+        purpose,
+        contact: contact || "+91 98xxx xxxxx",
+      });
+      toast.success("Enquiry created in DuckDB", {
+        description: `${createdCase.clientName} (${createdCase.id})`,
+      });
+      setFormOpen(false);
+      setName("");
+      setAmount("");
+      setContact("");
+    } catch (err) {
+      toast.error("Failed to create enquiry", { description: (err as Error).message });
+    }
+  };
+
+  const handleDropCase = async (caseId: string, targetStage: Stage) => {
+    try {
+      await updateLoanStageAction(caseId, targetStage);
+      toast.success(`Case updated to ${targetStage}`);
+    } catch (err) {
+      toast.error("Failed to update case stage");
+    }
   };
 
   const followUpsDue = allEnquiries.filter(
@@ -136,10 +159,6 @@ export function EmmsModule() {
             } else {
               setFilterTemp("Hot");
               toast.info(`Filtered to ${hotLeads.length} Hot leads`);
-              if (hotLeads[0]) {
-                selectCase(hotLeads[0].id);
-                setDrawerTab("Overview");
-              }
             }
           }}
         />
@@ -148,70 +167,34 @@ export function EmmsModule() {
           value={followUpsDue.length}
           status={followUpsDue.length ? "warning" : "success"}
           icon={<CalendarClock className="size-3.5" />}
-          support="Click to view due follow-ups"
-          clickHint="View"
-          onClick={() => {
-            if (followUpsDue[0]) {
-              selectCase(followUpsDue[0].id);
-              setDrawerTab("Overview");
-              toast.info(`Opened follow-up due: ${followUpsDue[0].clientName}`);
-            } else {
-              toast.info("No follow-ups due on or before demo date");
-            }
-          }}
+          support="Action required"
         />
         <KPI
-          label="Conversion"
+          label="Conversion rate"
           value={`${metrics.conversionRate.toFixed(0)}%`}
           status="info"
           icon={<TrendingUp className="size-3.5" />}
-          support={`${metrics.applications} converted`}
-        />
-        <KPI
-          label="Pipeline value"
-          value={inr(metrics.totalLoanValue, true)}
-          icon={<Target className="size-3.5" />}
-          support={`Avg ${inr(metrics.avgTicket, true)}`}
+          support={`${metrics.applications} converted of ${metrics.totalCases}`}
         />
       </KPIGroup>
 
-      <FilterBar
-        active={search !== "" || filterPriority !== "all" || filterTemp !== null}
-        onReset={() => {
-          setSearch("");
-          setFilterPriority("all");
-          setFilterTemp(null);
-        }}
-      >
-        <SearchBar value={search} onChange={setSearch} />
-        <SelectField
-          label="Priority"
-          value={filterPriority}
-          onChange={setFilterPriority}
-          options={[
-            { value: "all", label: "All priorities" },
-            { value: "Critical", label: "Critical" },
-            { value: "High", label: "High" },
-            { value: "Medium", label: "Medium" },
-            { value: "Low", label: "Low" },
-          ]}
-        />
-      </FilterBar>
-
+      {/* Kanban Board mapped strictly to LoanStage ENUMs */}
       <KanbanBoard>
-        {EMMS_COLUMNS.map((col) => {
-          const list = enquiries.filter((c) => c.workflowStatus === col);
+        {EMMS_STAGE_COLUMNS.map((col) => {
+          const list = visible.filter((c) => c.stage === col.stage);
           return (
             <KanbanColumn
-              key={col}
-              title={COLUMN_LABELS[col] ?? col}
+              key={col.stage}
+              title={col.label}
               count={list.length}
-              accent={col === "Interested" ? "success" : "info"}
-              emptyLabel="No enquiries here"
+              accent={col.accent}
+              emptyLabel={`No cases in ${col.label.toLowerCase()}`}
+              onDropCase={(caseId) => handleDropCase(caseId, col.stage)}
             >
               {list.map((c) => (
                 <KanbanCard
                   key={c.id}
+                  caseId={c.id}
                   onClick={() => selectCase(c.id)}
                   accent={c.temperature === "Hot" ? "danger" : "info"}
                 >

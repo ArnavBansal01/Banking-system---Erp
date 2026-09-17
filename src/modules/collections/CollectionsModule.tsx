@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertOctagon, CalendarClock, CheckCircle2, IndianRupee, TrendingDown } from "lucide-react";
+import { toast } from "sonner";
 import { useAppStore } from "@/store/useAppStore";
 import { useVisibleCases } from "@/modules/useVisibleCases";
 import { collectionBuckets } from "@/utils/metrics";
@@ -13,7 +14,7 @@ import { GlassPanel, SectionHeading } from "@/components/ui/GlassPanel";
 import { EmptyState, FilterBar, SearchBar, SelectField } from "@/components/ui/Controls";
 import { DataList } from "@/components/ui/DataList";
 import { BouncedBadge, PriorityBadge, StatusBadge } from "@/components/ui/Badges";
-import type { CollectionUrgency, LoanCase } from "@/types/loan";
+import type { CollectionUrgency, Stage } from "@/types/loan";
 
 const urgencyAccent: Record<CollectionUrgency, "success" | "warning" | "danger"> = {
   healthy: "success",
@@ -21,6 +22,16 @@ const urgencyAccent: Record<CollectionUrgency, "success" | "warning" | "danger">
   overdue: "danger",
   resolved: "success",
 };
+
+const COLLECTIONS_STAGE_COLUMNS: {
+  stage: Stage;
+  label: string;
+  accent: "warning" | "danger" | "success" | "info";
+}[] = [
+  { stage: "disbursed", label: "Disbursed (Pending Activation)", accent: "info" },
+  { stage: "active loan", label: "Active Loans", accent: "warning" },
+  { stage: "recovered", label: "Recovered / Closed", accent: "success" },
+];
 
 export function CollectionsModule() {
   const {
@@ -32,34 +43,26 @@ export function CollectionsModule() {
     setFilterPriority,
     selectCase,
     setDrawerTab,
+    fetchAllLoans,
+    updateLoanStageAction,
   } = useAppStore();
+
   const visible = useVisibleCases();
   const scope = getScope(currentRole);
   const buckets = collectionBuckets(visible, currentDemoDate);
-  const active = visible.filter((c) => c.stage === "collections");
 
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [stageFilter, setStageFilter] = useState<Stage | null>(null);
 
-  const rawColumns: {
-    key: string;
-    title: string;
-    list: LoanCase[];
-    accent: "warning" | "danger" | "success" | "info";
-  }[] = [
-    { key: "due", title: "Due", list: buckets.due, accent: "warning" },
-    { key: "overdue", title: "Overdue", list: buckets.overdue, accent: "danger" },
-    { key: "escalated", title: "Escalated", list: buckets.escalated, accent: "danger" },
-  ];
-  if (buckets.resolved.length > 0)
-    rawColumns.push({
-      key: "resolved",
-      title: "Resolved this cycle",
-      list: buckets.resolved,
-      accent: "success",
-    });
+  useEffect(() => {
+    fetchAllLoans();
+  }, [fetchAllLoans]);
 
-  const columns = rawColumns.filter((col) => !statusFilter || col.key === statusFilter);
+  // Collections queue covers disbursed, active loan, and recovered stages
+  const collectionsCases = visible.filter(
+    (c) => c.stage === "disbursed" || c.stage === "active loan" || c.stage === "recovered",
+  );
 
+  const active = visible.filter((c) => c.stage === "active loan" || c.stage === "disbursed");
   const overdueAmount = buckets.overdue.reduce((a, c) => a + c.emiAmount, 0);
   const collected = active.reduce(
     (a, c) =>
@@ -70,124 +73,69 @@ export function CollectionsModule() {
     0,
   );
 
+  const handleDropCase = async (caseId: string, targetStage: Stage) => {
+    try {
+      await updateLoanStageAction(caseId, targetStage);
+      toast.success(`Case updated to ${targetStage}`);
+    } catch (err) {
+      toast.error("Failed to update case stage");
+    }
+  };
+
   return (
     <div className="space-y-5">
       <PageHeader
         title="Collections"
-        subtitle={`Repayment condition as on ${longDate(currentDemoDate)} — change the demo date to move the book`}
+        subtitle={`Repayment condition as on ${longDate(currentDemoDate)} — select system date to inspect cycle`}
         crumbs={scope.crumbs}
       />
 
       <KPIGroup>
         <KPI
-          label="Active loans"
+          label="Active book"
           value={active.length}
           icon={<IndianRupee className="size-3.5" />}
           support={
-            statusFilter ? `Filtered: ${statusFilter} · Click to reset` : "In repayment cycle"
+            stageFilter ? `Filtered: ${stageFilter} · Click to reset` : "Receivable accounts"
           }
-          isActive={statusFilter === null}
+          isActive={stageFilter === null}
           clickHint="All"
           onClick={() => {
-            setStatusFilter(null);
+            setStageFilter(null);
             setSearch("");
             setFilterPriority("all");
-            toast.info("Showing all active loans in repayment");
+            toast.info("Showing all collection stages");
           }}
         />
         <KPI
-          label="Due now"
-          value={buckets.due.length}
-          status="warning"
-          icon={<CalendarClock className="size-3.5" />}
-          support={
-            statusFilter === "due"
-              ? "Filter active · Click to clear"
-              : "Inside due window · Click to view"
-          }
-          isActive={statusFilter === "due"}
-          clickHint="View"
-          onClick={() => {
-            const next = statusFilter === "due" ? null : "due";
-            setStatusFilter(next);
-            if (next) {
-              if (buckets.due[0]) {
-                selectCase(buckets.due[0].id);
-                setDrawerTab("Overview");
-                toast.warning(`Viewing case due now: ${buckets.due[0].clientName}`);
-              }
-            } else {
-              toast.info("Showing all collection columns");
-            }
-          }}
-        />
-        <KPI
-          label="Overdue"
-          value={buckets.overdue.length}
-          status="danger"
+          label="Overdue balance"
+          value={inr(overdueAmount, true)}
+          status={overdueAmount ? "danger" : "success"}
           icon={<TrendingDown className="size-3.5" />}
-          support={
-            statusFilter === "overdue"
-              ? "Filter active · Click to clear"
-              : `${inr(overdueAmount, true)} at risk · Click to view`
-          }
-          isActive={statusFilter === "overdue"}
-          clickHint="View"
-          onClick={() => {
-            const next = statusFilter === "overdue" ? null : "overdue";
-            setStatusFilter(next);
-            if (next) {
-              if (buckets.overdue[0]) {
-                selectCase(buckets.overdue[0].id);
-                setDrawerTab("Overview");
-                toast.error(`Viewing overdue case: ${buckets.overdue[0].clientName}`);
-              }
-            } else {
-              toast.info("Showing all collection columns");
-            }
-          }}
+          support={`${buckets.overdue.length} delinquent accounts`}
         />
         <KPI
           label="Escalated"
           value={buckets.escalated.length}
-          status="danger"
+          status={buckets.escalated.length ? "danger" : "neutral"}
           icon={<AlertOctagon className="size-3.5" />}
-          support={
-            statusFilter === "escalated"
-              ? "Filter active · Click to clear"
-              : "With higher authority · Click to view"
-          }
-          isActive={statusFilter === "escalated"}
-          clickHint="View"
-          onClick={() => {
-            const next = statusFilter === "escalated" ? null : "escalated";
-            setStatusFilter(next);
-            if (next) {
-              if (buckets.escalated[0]) {
-                selectCase(buckets.escalated[0].id);
-                setDrawerTab("Overview");
-                toast.error(`Viewing escalated case: ${buckets.escalated[0].clientName}`);
-              }
-            } else {
-              toast.info("Showing all collection columns");
-            }
-          }}
+          support="Legal / senior intervention"
         />
         <KPI
           label="Collected this month"
           value={inr(collected, true)}
           status="success"
           icon={<CheckCircle2 className="size-3.5" />}
-          support={`${buckets.resolved.length} resolved this cycle`}
+          support={`${collectionsCases.filter((c) => c.stage === "recovered").length} recovered`}
         />
       </KPIGroup>
 
       <FilterBar
-        active={search !== "" || filterPriority !== "all" || statusFilter !== null}
+        active={search !== "" || filterPriority !== "all" || stageFilter !== null}
         onReset={() => {
           setSearch("");
           setFilterPriority("all");
-          setStatusFilter(null);
+          setStageFilter(null);
         }}
       >
         <SearchBar value={search} onChange={setSearch} />
@@ -205,49 +153,58 @@ export function CollectionsModule() {
         />
       </FilterBar>
 
+      {/* Kanban Board mapped strictly to LoanStage ENUMs */}
       <KanbanBoard>
-        {columns.map((col) => (
-          <KanbanColumn
-            key={col.key}
-            title={col.title}
-            count={col.list.length}
-            accent={col.accent}
-            emptyLabel="Nothing in this state today"
-          >
-            {col.list.map((c) => {
-              const s = getCollectionState(c, currentDemoDate);
-              return (
-                <KanbanCard
-                  key={c.id}
-                  onClick={() => selectCase(c.id)}
-                  accent={urgencyAccent[s.urgency]}
-                >
-                  <CardRow>
-                    <span className="truncate text-sm font-semibold text-foreground">
-                      {c.clientName}
-                    </span>
-                    <StatusBadge status={s.status} urgency={s.urgency} />
-                  </CardRow>
-                  <p className="num mt-1 text-xs text-muted-foreground">
-                    EMI {inr(c.emiAmount)} · {s.dueWindow}
-                  </p>
-                  <CardRow className="mt-2">
-                    <span className="num text-[11px] font-medium text-muted-foreground">
-                      {s.label}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      {s.hasBounced && <BouncedBadge />}
-                      <PriorityBadge priority={c.priority} />
-                    </span>
-                  </CardRow>
-                  <p className="num mt-1.5 text-[11px] text-muted-foreground/80">
-                    {c.assignedOfficer} · next follow-up {shortDate(c.nextFollowUp)}
-                  </p>
-                </KanbanCard>
-              );
-            })}
-          </KanbanColumn>
-        ))}
+        {COLLECTIONS_STAGE_COLUMNS.filter((col) => !stageFilter || col.stage === stageFilter).map(
+          (col) => {
+            const list = collectionsCases.filter((c) => c.stage === col.stage);
+
+            return (
+              <KanbanColumn
+                key={col.stage}
+                title={col.label}
+                count={list.length}
+                accent={col.accent}
+                emptyLabel={`No cases in ${col.label.toLowerCase()}`}
+                onDropCase={(caseId) => handleDropCase(caseId, col.stage)}
+              >
+                {list.map((c) => {
+                  const s = getCollectionState(c, currentDemoDate);
+                  return (
+                    <KanbanCard
+                      key={c.id}
+                      caseId={c.id}
+                      onClick={() => selectCase(c.id)}
+                      accent={urgencyAccent[s.urgency]}
+                    >
+                      <CardRow>
+                        <span className="truncate text-sm font-semibold text-foreground">
+                          {c.clientName}
+                        </span>
+                        <StatusBadge status={s.status} urgency={s.urgency} />
+                      </CardRow>
+                      <p className="num mt-1 text-xs text-muted-foreground">
+                        EMI {inr(c.emiAmount)} · {s.dueWindow}
+                      </p>
+                      <CardRow className="mt-2">
+                        <span className="num text-[11px] font-medium text-muted-foreground">
+                          {s.label}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          {s.hasBounced && <BouncedBadge />}
+                          <PriorityBadge priority={c.priority} />
+                        </span>
+                      </CardRow>
+                      <p className="num mt-1.5 text-[11px] text-muted-foreground/80">
+                        {c.assignedOfficer} · next follow-up {shortDate(c.nextFollowUp)}
+                      </p>
+                    </KanbanCard>
+                  );
+                })}
+              </KanbanColumn>
+            );
+          },
+        )}
       </KanbanBoard>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -257,26 +214,36 @@ export function CollectionsModule() {
             items={buckets.bounced.map((c) => ({
               id: c.id,
               primary: c.clientName,
-              secondary: `${c.emiHistory.filter((e) => e.bounced).length} bounce(s) · mandate check needed`,
+              secondary: `EMI ${inr(c.emiAmount)} · ${c.branch} · assigned to ${c.assignedOfficer}`,
               meta: <BouncedBadge />,
-              accent: "warning" as const,
-            }))}
-            onSelect={selectCase}
-            empty={<EmptyState compact title="No bounced payments in this scope" />}
-          />
-        </GlassPanel>
-        <GlassPanel accent="danger">
-          <SectionHeading title="Missing next action" count={buckets.missedFollowUps.length} />
-          <DataList
-            items={buckets.missedFollowUps.map((c) => ({
-              id: c.id,
-              primary: c.clientName,
-              secondary: `${getCollectionState(c, currentDemoDate).label} · no follow-up scheduled`,
-              meta: <span className="num text-xs text-muted-foreground">{inr(c.emiAmount)}</span>,
               accent: "danger" as const,
             }))}
-            onSelect={selectCase}
-            empty={<EmptyState compact title="Every open case has a next action" />}
+            onSelect={(id) => {
+              selectCase(id);
+              setDrawerTab("Payments");
+            }}
+            empty={<EmptyState compact title="Zero bounces recorded" />}
+          />
+        </GlassPanel>
+
+        <GlassPanel accent="danger">
+          <SectionHeading
+            title="Overdue accounts requiring contact"
+            count={buckets.overdue.length}
+          />
+          <DataList
+            items={buckets.overdue.map((c) => ({
+              id: c.id,
+              primary: c.clientName,
+              secondary: `Outstanding: ${inr(c.outstanding, true)} · ${c.applicant.contact}`,
+              meta: <PriorityBadge priority={c.priority} />,
+              accent: "danger" as const,
+            }))}
+            onSelect={(id) => {
+              selectCase(id);
+              setDrawerTab("Overview");
+            }}
+            empty={<EmptyState compact title="No overdue accounts" />}
           />
         </GlassPanel>
       </div>

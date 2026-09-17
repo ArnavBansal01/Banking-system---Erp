@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   AlertTriangle,
   Banknote,
@@ -7,10 +7,10 @@ import {
   Landmark,
   ListChecks,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useAppStore } from "@/store/useAppStore";
 import { useVisibleCases } from "@/modules/useVisibleCases";
 import { computeMetrics } from "@/utils/metrics";
-import { COLUMN_LABELS, OPS_COLUMNS } from "@/utils/transitions";
 import { getApplicationSla, getPostApprovalSla } from "@/utils/dates";
 import { getScope } from "@/utils/scope";
 import { can } from "@/utils/permissions";
@@ -22,6 +22,12 @@ import { GlassPanel, SectionHeading } from "@/components/ui/GlassPanel";
 import { EmptyState, FilterBar, SearchBar, SelectField } from "@/components/ui/Controls";
 import { DataList, ProgressBar } from "@/components/ui/DataList";
 import { PriorityBadge, QueryBadge, SlaBadge } from "@/components/ui/Badges";
+import type { Stage } from "@/types/loan";
+
+const OPS_STAGE_COLUMNS: { stage: Stage; label: string; accent: "warning" | "success" }[] = [
+  { stage: "credit approved", label: "Approved (Verification & Checklist)", accent: "warning" },
+  { stage: "disbursed", label: "Disbursed", accent: "success" },
+];
 
 export function OperationsModule() {
   const {
@@ -34,27 +40,37 @@ export function OperationsModule() {
     selectCase,
     setView,
     setDrawerTab,
+    fetchAllLoans,
+    updateLoanStageAction,
   } = useAppStore();
+
   const visible = useVisibleCases();
   const scope = getScope(currentRole);
   const metrics = computeMetrics(visible, currentDemoDate);
   const canViewSla = can(currentRole, "viewSlaAttention");
 
-  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [stageFilter, setStageFilter] = useState<Stage | null>(null);
 
-  const ops = visible
-    .filter((c) => c.stage === "disbursement")
-    .filter((c) => canViewSla || c.workflowStatus !== "SLA Attention");
+  useEffect(() => {
+    fetchAllLoans();
+  }, [fetchAllLoans]);
 
-  const displayOps = ops.filter((c) => !statusFilter || c.workflowStatus === statusFilter);
+  // Operations queue covers credit approved and disbursed stages
+  const ops = visible.filter((c) => c.stage === "credit approved" || c.stage === "disbursed");
 
-  const activeLoans = visible.filter((c) => c.stage === "collections");
-  const pendingDocs = ops.filter(
-    (c) => c.workflowStatus !== "SLA Attention" && c.documents.some((d) => !d.received),
-  );
+  const displayOps = ops.filter((c) => !stageFilter || c.stage === stageFilter);
+  const activeLoans = visible.filter((c) => c.stage === "active loan" || c.stage === "disbursed");
+  const pendingDocs = ops.filter((c) => c.documents.some((d) => !d.received));
   const slaCases = ops.filter((c) => c.workflowStatus === "SLA Attention");
 
-  const availableColumns = OPS_COLUMNS.filter((col) => col !== "SLA Attention" || canViewSla);
+  const handleDropCase = async (caseId: string, targetStage: Stage) => {
+    try {
+      await updateLoanStageAction(caseId, targetStage);
+      toast.success(`Case moved to ${targetStage}`);
+    } catch (err) {
+      toast.error("Failed to update case stage");
+    }
+  };
 
   return (
     <div className="space-y-5">
@@ -66,115 +82,75 @@ export function OperationsModule() {
 
       <KPIGroup>
         <KPI
-          label="Files received"
+          label="Operations queue"
           value={ops.length}
           icon={<FileCheck className="size-3.5" />}
-          support={statusFilter ? `Filtered: ${statusFilter} · Click to reset` : "From credit"}
-          isActive={statusFilter === null}
+          support={stageFilter ? `Filtered: ${stageFilter} · Click to reset` : "From credit"}
+          isActive={stageFilter === null}
           clickHint="All"
           onClick={() => {
-            setStatusFilter(null);
+            setStageFilter(null);
             setSearch("");
             setFilterPriority("all");
             toast.info("Showing all operations files");
           }}
         />
         <KPI
-          label="In verification"
-          value={metrics.opsProcessing}
+          label="Credit approved"
+          value={ops.filter((c) => c.stage === "credit approved").length}
           status="warning"
           icon={<ListChecks className="size-3.5" />}
           support={
-            statusFilter === "Verification"
+            stageFilter === "credit approved"
               ? "Filter active · Click to clear"
               : "Checklist open · Click to view"
           }
-          isActive={statusFilter === "Verification"}
+          isActive={stageFilter === "credit approved"}
           clickHint="Filter"
           onClick={() => {
-            const next = statusFilter === "Verification" ? null : "Verification";
-            setStatusFilter(next);
-            if (next) {
-              const target = ops.find((c) => c.workflowStatus === "Verification");
-              if (target) {
-                selectCase(target.id);
-                setDrawerTab("Checklist");
-                toast.info(`Viewing checklist for ${target.clientName}`);
-              }
-            } else {
-              toast.info("Showing all operations files");
-            }
+            const next = stageFilter === "credit approved" ? null : "credit approved";
+            setStageFilter(next);
+            toast.info(next ? "Filtered to Approved" : "Showing all stages");
           }}
         />
         <KPI
-          label="Ready to disburse"
-          value={metrics.opsReady}
+          label="Disbursed"
+          value={ops.filter((c) => c.stage === "disbursed").length}
           status="success"
-          icon={<CheckCircle2 className="size-3.5" />}
+          icon={<Banknote className="size-3.5" />}
           support={
-            statusFilter === "Ready for Disbursement"
+            stageFilter === "disbursed"
               ? "Filter active · Click to clear"
-              : "Cleared checks · Click to view"
+              : "Released · Click to filter"
           }
-          isActive={statusFilter === "Ready for Disbursement"}
-          clickHint="View"
+          isActive={stageFilter === "disbursed"}
+          clickHint="Filter"
           onClick={() => {
-            const next =
-              statusFilter === "Ready for Disbursement" ? null : "Ready for Disbursement";
-            setStatusFilter(next);
-            if (next) {
-              const target = ops.find((c) => c.workflowStatus === "Ready for Disbursement");
-              if (target) {
-                selectCase(target.id);
-                setDrawerTab("Overview");
-                toast.success(`Viewing ready to disburse file: ${target.clientName}`);
-              }
-            } else {
-              toast.info("Showing all operations files");
-            }
+            const next = stageFilter === "disbursed" ? null : "disbursed";
+            setStageFilter(next);
+            toast.info(next ? "Filtered to Disbursed" : "Showing all stages");
           }}
         />
-        {canViewSla && (
-          <KPI
-            label="SLA Attention"
-            value={slaCases.length}
-            status={slaCases.length > 0 ? "danger" : "neutral"}
-            icon={<AlertTriangle className="size-3.5" />}
-            support="Overdue >15 days · Click to view"
-            isActive={statusFilter === "SLA Attention"}
-            clickHint="View"
-            onClick={() => {
-              if (slaCases[0]) {
-                selectCase(slaCases[0].id);
-                setDrawerTab("Checklist");
-                toast.error(`Viewing SLA attention file: ${slaCases[0].clientName}`);
-              } else {
-                toast.info("No SLA attention files");
-              }
-            }}
-          />
-        )}
         <KPI
-          label="Disbursed value"
-          value={inr(metrics.totalDisbursed, true)}
-          icon={<Banknote className="size-3.5" />}
-          support="Cumulative volume released"
-        />
-        <KPI
-          label="Active loans"
+          label="Active portfolio"
           value={activeLoans.length}
           status="info"
           icon={<Landmark className="size-3.5" />}
-          support="Active repayment portfolio"
+          support="Click to view collections"
+          clickHint="Collections"
+          onClick={() => {
+            setView("Collections");
+            toast.info("Navigated to Collections workspace");
+          }}
         />
       </KPIGroup>
 
       <FilterBar
-        active={search !== "" || filterPriority !== "all" || statusFilter !== null}
+        active={Boolean(search) || filterPriority !== "all" || stageFilter !== null}
         onReset={() => {
           setSearch("");
           setFilterPriority("all");
-          setStatusFilter(null);
+          setStageFilter(null);
         }}
       >
         <SearchBar value={search} onChange={setSearch} />
@@ -192,85 +168,63 @@ export function OperationsModule() {
         />
       </FilterBar>
 
+      {/* Kanban Board mapped strictly to LoanStage ENUMs */}
       <KanbanBoard>
-        {availableColumns.map((col) => {
-          const list = displayOps.filter((c) => c.workflowStatus === col);
-          const isSlaCol = col === "SLA Attention";
+        {OPS_STAGE_COLUMNS.map((col) => {
+          const list = displayOps.filter((c) => c.stage === col.stage);
+
           return (
             <KanbanColumn
-              key={col}
-              title={COLUMN_LABELS[col] ?? col}
+              key={col.stage}
+              title={col.label}
               count={list.length}
-              accent={
-                isSlaCol
-                  ? "danger"
-                  : col === "Verification"
-                    ? "warning"
-                    : col === "Ready for Disbursement"
-                      ? "success"
-                      : "info"
-              }
-              emptyLabel={isSlaCol ? "No breached SLA files" : "Nothing in this stage"}
+              accent={col.accent}
+              emptyLabel={`No cases in ${col.label.toLowerCase()}`}
+              onDropCase={(caseId) => handleDropCase(caseId, col.stage)}
             >
               {list.map((c) => {
-                const done = c.checklist.filter((i) => i.done).length;
-                const sla = getApplicationSla(c, currentDemoDate);
-                const postSla = getPostApprovalSla(c, currentDemoDate);
+                const sla = getPostApprovalSla(c, currentDemoDate);
+                const docsReceived = c.documents.filter((d) => d.received).length;
+                const docsTotal = c.documents.length || 3;
 
                 return (
                   <KanbanCard
                     key={c.id}
+                    caseId={c.id}
                     onClick={() => selectCase(c.id)}
-                    accent={
-                      isSlaCol ? "danger" : done === c.checklist.length ? "success" : "warning"
-                    }
+                    accent={col.stage === "disbursed" ? "success" : "warning"}
                   >
                     <CardRow>
                       <span className="truncate text-sm font-semibold text-foreground">
                         {c.clientName}
                       </span>
-                      {isSlaCol ? (
-                        <span className="rounded-md bg-destructive/15 px-1.5 py-0.5 text-[9px] font-black uppercase text-destructive">
-                          SLA Breached
-                        </span>
-                      ) : canViewSla && sla ? (
+                      {canViewSla && sla && (
                         <SlaBadge day={sla.day} total={sla.total} urgency={sla.urgency} />
-                      ) : null}
+                      )}
                     </CardRow>
                     <p className="num mt-1 text-xs text-muted-foreground">
-                      {inr(c.loanAmount, true)} · {c.branch}
+                      {inr(c.loanAmount, true)} · {c.terms.product} · {c.branch}
                     </p>
-
-                    {isSlaCol ? (
-                      <div className="mt-2.5 space-y-1.5 rounded-lg border border-destructive/20 bg-destructive/5 p-2 text-[11px]">
-                        <div className="flex items-center justify-between text-destructive font-semibold">
-                          <span>Pending verification:</span>
-                          <span className="num font-bold">
-                            {postSla ? `${postSla.day}d / ${postSla.total}d` : ">15d"}
-                          </span>
-                        </div>
-                        <p className="text-[10px] text-muted-foreground">
-                          {c.checklist.length - done} items pending. Click to review & re-open file.
-                        </p>
+                    <div className="mt-2 space-y-1">
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                        <span>Checklist</span>
+                        <span className="num">
+                          {docsReceived}/{docsTotal}
+                        </span>
                       </div>
-                    ) : (
-                      <div className="mt-2.5">
-                        <ProgressBar
-                          value={done}
-                          max={c.checklist.length}
-                          tone={done === c.checklist.length ? "success" : "warning"}
-                        />
-                        <CardRow className="mt-1.5">
-                          <span className="num text-[11px] text-muted-foreground">
-                            {done}/{c.checklist.length} checks
+                      <ProgressBar value={docsReceived} max={docsTotal} />
+                    </div>
+                    <CardRow className="mt-2">
+                      <span className="flex items-center gap-1">
+                        {c.queryRaised && <QueryBadge />}
+                        {col.stage === "disbursed" && (
+                          <span className="rounded-md bg-success/15 px-1.5 py-0.5 text-[10px] font-bold text-success">
+                            Disbursed
                           </span>
-                          <span className="flex items-center gap-1">
-                            {c.queryRaised && <QueryBadge />}
-                            <PriorityBadge priority={c.priority} />
-                          </span>
-                        </CardRow>
-                      </div>
-                    )}
+                        )}
+                      </span>
+                      <PriorityBadge priority={c.priority} />
+                    </CardRow>
                   </KanbanCard>
                 );
               })}
@@ -280,38 +234,57 @@ export function OperationsModule() {
       </KanbanBoard>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <GlassPanel accent="warning">
-          <SectionHeading title="Pending documents" count={pendingDocs.length} />
+        <GlassPanel>
+          <SectionHeading title="Pending documentation" count={pendingDocs.length} />
           <DataList
-            items={pendingDocs.map((c) => ({
-              id: c.id,
-              primary: c.clientName,
-              secondary: c.documents
-                .filter((d) => !d.received)
-                .map((d) => d.name)
-                .join(", "),
-              accent: "warning" as const,
-            }))}
-            onSelect={selectCase}
-            empty={<EmptyState compact title="All files are document-complete" />}
+            items={pendingDocs.map((c) => {
+              const missing = c.documents.filter((d) => !d.received).map((d) => d.name);
+              return {
+                id: c.id,
+                primary: c.clientName,
+                secondary: missing.length
+                  ? `Awaiting: ${missing.join(", ")}`
+                  : "All documents verified",
+                meta: (
+                  <span className="num text-xs text-muted-foreground">
+                    {inr(c.loanAmount, true)}
+                  </span>
+                ),
+                accent: "warning" as const,
+              };
+            })}
+            onSelect={(id) => {
+              selectCase(id);
+              setDrawerTab("Verification");
+            }}
+            empty={<EmptyState compact title="All documentation complete" />}
           />
         </GlassPanel>
-        <GlassPanel accent="success">
-          <SectionHeading title="Active loan book" count={activeLoans.length} />
+
+        <GlassPanel>
+          <SectionHeading
+            title="Disbursed files"
+            count={ops.filter((c) => c.stage === "disbursed").length}
+          />
           <DataList
-            items={activeLoans.map((c) => ({
-              id: c.id,
-              primary: c.clientName,
-              secondary: `Disbursed ${c.disbursedDate ? longDate(c.disbursedDate) : "—"} · EMI ${inr(c.emiAmount)}`,
-              meta: (
-                <span className="num text-xs text-muted-foreground">
-                  {inr(c.outstanding, true)}
-                </span>
-              ),
-              accent: "success" as const,
-            }))}
-            onSelect={selectCase}
-            empty={<EmptyState compact title="No active loans in this scope" />}
+            items={ops
+              .filter((c) => c.stage === "disbursed")
+              .map((c) => ({
+                id: c.id,
+                primary: c.clientName,
+                secondary: `Disbursed ${c.disbursedDate ? longDate(c.disbursedDate) : "recently"} · ${c.terms.repayment}`,
+                meta: (
+                  <span className="num text-xs font-semibold text-success">
+                    {inr(c.loanAmount, true)}
+                  </span>
+                ),
+                accent: "success" as const,
+              }))}
+            onSelect={(id) => {
+              selectCase(id);
+              setDrawerTab("Disbursement");
+            }}
+            empty={<EmptyState compact title="No disbursements yet" />}
           />
         </GlassPanel>
       </div>
