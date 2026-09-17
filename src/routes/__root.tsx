@@ -98,7 +98,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap",
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/image.png", type: "image/png" },
+      { rel: "shortcut icon", href: "/image.png", type: "image/png" },
+      { rel: "apple-touch-icon", href: "/image.png" },
     ],
   }),
   shellComponent: RootShell,
@@ -123,6 +125,17 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+
+  useEffect(() => {
+    let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.type = "image/png";
+    link.href = "/image.png";
+  }, []);
 
   return (
     <QueryClientProvider client={queryClient}>

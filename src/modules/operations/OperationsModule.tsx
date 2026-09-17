@@ -64,6 +64,14 @@ export function OperationsModule() {
   const slaCases = ops.filter((c) => c.workflowStatus === "SLA Attention");
 
   const handleDropCase = async (caseId: string, targetStage: Stage) => {
+    if (targetStage === "disbursed" && !can(currentRole, "processDisbursement")) {
+      toast.error("Only Branch Manager or higher authority can disburse funds.");
+      return;
+    }
+    if (targetStage === "credit approved" && !can(currentRole, "approve")) {
+      toast.error("Only Branch Manager or higher authority can approve loans.");
+      return;
+    }
     try {
       await updateLoanStageAction(caseId, targetStage);
       toast.success(`Case moved to ${targetStage}`);

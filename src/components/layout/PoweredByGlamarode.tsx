@@ -1,5 +1,5 @@
 import React from "react";
-import glamarodeLogo from "../../../image.png";
+import glamarodeLogo from "../../../public/glamarode-logo.png";
 
 export interface PoweredByGlamarodeProps {
   className?: string;

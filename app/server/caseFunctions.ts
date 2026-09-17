@@ -211,6 +211,12 @@ export const createNewEnquiry = createServerFn({ method: "POST" })
         data.loan_group_id || null,
       );
 
+      try {
+        await db.run("CHECKPOINT;");
+      } catch (cpErr) {
+        console.warn("[Cassmart DB] Checkpoint notice:", cpErr);
+      }
+
       // 3. Return full joined record
       const rows = await db.all(
         `
@@ -262,6 +268,7 @@ export const updateLoanStage = createServerFn({ method: "POST" })
     try {
       const db = await getDb();
       await db.run("UPDATE loans SET stage = ? WHERE id = ?", new_stage, loan_id);
+      try { await db.run("CHECKPOINT;"); } catch {}
       return {
         success: true,
         loan_id,
@@ -310,6 +317,7 @@ export const addLoanNote = createServerFn({ method: "POST" })
         data.added_by_emp_id || null,
         data.content,
       );
+      try { await db.run("CHECKPOINT;"); } catch {}
 
       const rows = await db.all("SELECT * FROM loan_notes WHERE id = ? LIMIT 1", noteId);
       return rows[0] as LoanNoteRecord;
@@ -353,6 +361,7 @@ export const resolveCase = createServerFn({ method: "POST" })
           `Case Resolved: ${data.note}`,
         );
       }
+      try { await db.run("CHECKPOINT;"); } catch {}
 
       return {
         success: true,
@@ -601,6 +610,7 @@ export const createCaseQuery = createServerFn({ method: "POST" })
       }
 
       const rows = await db.all("SELECT * FROM queries WHERE id = ? LIMIT 1", queryId);
+      try { await db.run("CHECKPOINT;"); } catch {}
       return rows[0] as CaseQueryDbRecord;
     } catch (error) {
       console.error("[Cassmart DB] Failed to create query:", error);
@@ -675,6 +685,8 @@ export const resolveCaseQuery = createServerFn({ method: "POST" })
       } catch (contextErr) {
         console.warn("[Cassmart DB] Non-fatal: failed to insert resolution context:", contextErr);
       }
+
+      try { await db.run("CHECKPOINT;"); } catch {}
 
       return {
         success: true,

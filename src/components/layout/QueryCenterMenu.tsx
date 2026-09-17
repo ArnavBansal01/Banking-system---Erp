@@ -14,6 +14,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { getScope, scopedCases } from "@/utils/scope";
 import { cn } from "@/lib/utils";
 import type { Role } from "@/types/loan";
+import { getNextHigherRoles, ROLE_HIERARCHY_LEVEL } from "@/utils/permissions";
 import {
   Dialog,
   DialogContent,
@@ -23,18 +24,9 @@ import {
 } from "@/components/ui/dialog";
 
 function getQueryDestination(role: Role): string {
-  switch (role) {
-    case "Officer":
-      return "Branch Manager";
-    case "Branch Manager":
-      return "Regional Manager";
-    case "Regional Manager":
-      return "Branch Manager";
-    case "MD":
-      return "None (Apex Authority)";
-    default:
-      return "Branch Manager";
-  }
+  if (role === "MD") return "None (Apex Authority)";
+  const higher = getNextHigherRoles(role);
+  return higher.length > 0 ? higher.join(", ") : "Higher Management";
 }
 
 export function QueryCenterMenu() {
@@ -68,14 +60,15 @@ export function QueryCenterMenu() {
 
   // Queries awaiting action from this role (and not authored by self)
   const pendingForMe = React.useMemo(() => {
-    return allQueriesWithCase.filter(
-      (q) =>
-        q.status === "OPEN" &&
-        q.targetRoles.includes(currentRole) &&
-        q.raisedByRole !== currentRole &&
-        q.raisedBy !== (scope?.officer ?? currentRole) &&
-        !(currentRole === "Officer" && q.raisedByRole === "Officer"),
-    );
+    return allQueriesWithCase.filter((q) => {
+      if (q.status !== "OPEN") return false;
+      const isAuthor =
+        q.raisedByRole === currentRole ||
+        q.raisedBy === (scope?.officer ?? currentRole) ||
+        (currentRole === "Officer" && q.raisedByRole === "Officer");
+      if (isAuthor) return false;
+      return q.targetRoles.includes(currentRole);
+    });
   }, [allQueriesWithCase, currentRole, scope]);
 
   // Queries sent by this role to higher authorities

@@ -23,6 +23,7 @@ import type {
   WorkflowStatus,
 } from "@/types/loan";
 import { LOAN_STAGES } from "@/utils/transitions";
+import { getNextHigherRoles } from "@/utils/permissions";
 
 export interface UserProfile {
   name: string;
@@ -155,7 +156,16 @@ export function mapLoanRowToCase(row: LoanRow | LoanDetailRecord): LoanCase {
     emiAmount: row.emi_amount ?? 0,
     outstanding: row.amount ?? 0,
     stage: row.stage,
-    workflowStatus: row.stage === "active loan" ? "DUE" : "New",
+    workflowStatus:
+      row.stage === "credit approved"
+        ? "Verification"
+        : row.stage === "disbursed" || row.stage === "active loan"
+          ? "DUE"
+          : row.stage === "recovered"
+            ? "RESOLVED"
+            : row.stage === "application"
+              ? "New"
+              : "New Enquiry",
     queryRaised: mappedQueries.some((q) => q.status === "OPEN"),
     escalated: false,
     cibilException: false,
@@ -756,15 +766,21 @@ export const useAppStore = create<AppState>()((set, get) => {
     },
 
     raiseQuery: async (id, question, actor, actorRole) => {
-      // 1. Persist to DuckDB FIRST (Zero Client-Side Faking)
       const roleStr = actorRole ?? get().currentRole;
+      if (roleStr === "MD") {
+        throw new Error("Managing Director is the apex sanctioning authority and does not raise queries.");
+      }
+      const targetRoles = getNextHigherRoles(roleStr);
+      const targetRolesStr = targetRoles.join(",");
+
+      // 1. Persist to DuckDB FIRST (Zero Client-Side Faking)
       const qRecord = await createCaseQuery({
         data: {
           loan_id: id,
           question,
           raised_by: actor,
           raised_by_role: roleStr,
-          target_roles: "Branch Manager,Officer",
+          target_roles: targetRolesStr,
         },
       });
 
@@ -774,7 +790,7 @@ export const useAppStore = create<AppState>()((set, get) => {
         raisedBy: actor,
         raisedByRole: roleStr,
         raisedAt: stamp(get().currentDemoDate),
-        targetRoles: ["Branch Manager", "Officer"],
+        targetRoles,
         status: "OPEN",
       };
 
@@ -786,7 +802,7 @@ export const useAppStore = create<AppState>()((set, get) => {
           queryRaised: true,
           queries: [...c.queries, q],
         }),
-        { action: "Query raised", actor, note: question },
+        { action: `Query raised to ${targetRoles.join(", ")}`, actor, note: question },
       );
     },
 

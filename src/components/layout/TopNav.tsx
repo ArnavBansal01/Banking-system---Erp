@@ -1,4 +1,4 @@
-import { Calendar, Landmark } from "lucide-react";
+import { Calendar } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import type { ModuleView } from "@/types/loan";
 import { cn } from "@/lib/utils";
@@ -22,10 +22,12 @@ export function TopNav() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur-xl">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5 lg:px-6">
-        <div className="flex items-center gap-2">
-          <span className="grid size-8 place-items-center rounded-lg bg-primary/15 text-primary">
-            <Landmark className="size-4" aria-hidden />
-          </span>
+        <div className="flex items-center gap-2.5">
+          <img
+            src="/image.png"
+            alt="Cassmart Logo"
+            className="size-8 rounded-lg object-contain bg-white/10 p-0.5 shadow-xs shrink-0"
+          />
           <span className="text-sm font-extrabold tracking-tight text-foreground">Cassmart</span>
         </div>
 

@@ -152,16 +152,16 @@ export function LoginPage() {
       <header className="relative z-10 w-full border-b border-border/80 bg-background/80 backdrop-blur-xl shrink-0">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <span className="grid size-8 place-items-center rounded-lg bg-primary/15 text-primary ring-1 ring-primary/30">
-              <Landmark className="size-4" aria-hidden />
-            </span>
+            <img
+              src="/image.png"
+              alt="Cassmart Logo"
+              className="size-8 rounded-lg object-contain bg-white/10 p-0.5 shadow-xs shrink-0"
+            />
             <span className="text-sm font-extrabold tracking-tight text-foreground">Cassmart</span>
           </div>
 
           <div className="flex items-center gap-2.5">
             <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-border/60 bg-surface/60 text-[11px] text-muted-foreground">
-              <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <span>DuckDB Connected</span>
             </div>
 
             <ThemeToggle />
@@ -175,9 +175,11 @@ export function LoginPage() {
           <div className="rounded-2xl border border-border/80 bg-surface/85 backdrop-blur-2xl p-5 sm:p-6 shadow-2xl space-y-4">
             {/* Header / Intro */}
             <div className="text-center space-y-1">
-              <div className="inline-flex size-10 items-center justify-center rounded-xl bg-primary/15 text-primary ring-1 ring-primary/30 mb-0.5">
-                <CurrentIcon className="size-5" />
-              </div>
+              <img
+                src="/image.png"
+                alt="Cassmart Logo"
+                className="size-16 mx-auto object-contain drop-shadow-md mb-1.5 rounded-2xl bg-white/5 p-1"
+              />
               <h1 className="text-xl font-bold tracking-tight text-foreground">Sign In</h1>
               <p className="text-xs text-muted-foreground">
                 Select your role and enter your credentials

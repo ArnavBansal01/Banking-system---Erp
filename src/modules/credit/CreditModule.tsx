@@ -64,6 +64,10 @@ export function CreditModule() {
     .filter((c) => !stageFilter || c.stage === stageFilter);
 
   const handleDropCase = async (caseId: string, targetStage: Stage) => {
+    if (targetStage === "credit approved" && !can(currentRole, "approve")) {
+      toast.error("Only Branch Manager or higher authority can approve loans.");
+      return;
+    }
     try {
       await updateLoanStageAction(caseId, targetStage);
       toast.success(`Case moved to ${targetStage}`);

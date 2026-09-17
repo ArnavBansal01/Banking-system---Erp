@@ -1,1 +1,1 @@
-export * from "../../app/server/db";
+export * from "../../app/server/db.ts";

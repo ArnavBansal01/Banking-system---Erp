@@ -19,11 +19,11 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { useAppStore } from "@/store/useAppStore";
 import { getScope } from "@/utils/scope";
-import { can, type Action } from "@/utils/permissions";
+import { can, type Action, ROLE_HIERARCHY_LEVEL } from "@/utils/permissions";
 import { getApplicationSla, getCollectionState, isCaseSlaBreached } from "@/utils/dates";
 import { TRANSITIONS, nextEmmsStatus } from "@/utils/transitions";
 import { inr, longDate, pct, shortDate } from "@/utils/format";
-import type { LoanCase } from "@/types/loan";
+import type { LoanCase, Role } from "@/types/loan";
 import {
   BouncedBadge,
   ExceptionBadge,
@@ -167,7 +167,7 @@ export function CaseDrawer() {
             TRANSITIONS.approve.event,
             text || undefined,
           );
-          toast.success("Credit approved", { description: "Case handed over to Operations" });
+          toast.success("Credit approved", { description: "Loan approved — next step is Mark Ready" });
           break;
         case "reject":
           await moveCase(
@@ -410,7 +410,7 @@ export function CaseDrawer() {
                 onResolveQuery={(qid, res) =>
                   resolveQuery(c.id, qid, res, activeActor, currentRole)
                 }
-                canQuery={allow("query")}
+                canQuery={allow("query") && currentRole !== "MD"}
                 canResolveQuery={allow("resolveQuery")}
               />
             </div>
@@ -454,7 +454,7 @@ export function CaseDrawer() {
                 </>
               )}
 
-              {(c.stage === "application" || c.stage === "credit approved") && (
+              {c.stage === "application" && (
                 <>
                   {allow("approve") && (
                     <ActionButton variant="primary" size="sm" onClick={() => setModal("approve")}>
@@ -481,7 +481,7 @@ export function CaseDrawer() {
                         Resolve Query
                       </ActionButton>
                     )}
-                  {allow("query") && (
+                  {allow("query") && currentRole !== "MD" && (
                     <ActionButton size="sm" onClick={() => setModal("query")}>
                       Raise Query
                     </ActionButton>
@@ -494,7 +494,7 @@ export function CaseDrawer() {
                 </>
               )}
 
-              {(c.stage === "credit approved" || c.stage === "disbursed") && (
+              {c.stage === "credit approved" && (
                 <>
                   {c.workflowStatus === "SLA Attention" && allow("reopenFile") && (
                     <ActionButton
@@ -505,19 +505,24 @@ export function CaseDrawer() {
                       Re-open File
                     </ActionButton>
                   )}
-                  {c.workflowStatus === "Verification" && allow("markReady") && (
+                  {c.workflowStatus !== "Ready for Disbursement" && allow("markReady") && (
                     <ActionButton variant="primary" size="sm" onClick={() => setModal("markReady")}>
                       Mark Ready
                     </ActionButton>
                   )}
-                  {allow("processDisbursement") && (
+                  {c.workflowStatus === "Ready for Disbursement" && allow("processDisbursement") && (
                     <ActionButton variant="success" size="sm" onClick={() => setModal("disburse")}>
                       Disburse Funds
                     </ActionButton>
                   )}
-                  {allow("query") && (
+                  {allow("query") && currentRole !== "MD" && (
                     <ActionButton size="sm" onClick={() => setModal("query")}>
                       Raise Query
+                    </ActionButton>
+                  )}
+                  {allow("reject") && (
+                    <ActionButton variant="danger" size="sm" onClick={() => setModal("reject")}>
+                      Reject
                     </ActionButton>
                   )}
                 </>
@@ -1337,8 +1342,7 @@ function QueriesTabContent({
             className="space-y-2 rounded-xl border border-border/80 bg-surface/50 p-3 shadow-xs"
           >
             <p className="text-[11px] text-muted-foreground">
-              Queries route to higher authorities (Officer → Branch Manager; Branch Manager →
-              Regional Manager).
+              Queries automatically route to one-level-higher authorities (Officer → Branch Manager → Area Manager / Regional Manager → GM / Business Head → MD). MD cannot raise queries.
             </p>
             <textarea
               rows={2}

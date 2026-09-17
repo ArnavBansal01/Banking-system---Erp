@@ -9,6 +9,7 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "db:init": "node --experimental-strip-types scripts/setup-db.ts",
+    "db:inspect": "node scripts/inspect-db.mjs",
     "lint": "eslint .",
     "format": "prettier --write ."
   },

@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import { Database } from "duckdb-async";
 
 /**
@@ -5,14 +6,62 @@ import { Database } from "duckdb-async";
  * Persistent physical DuckDB database module
  */
 
+export const DB_FILE_PATH = "nbfc-erp.duckdb";
+const WAL_FILE_PATH = "nbfc-erp.duckdb.wal";
+
 declare global {
   var __cassmart_duckdb__: Database | undefined;
   var __cassmart_db_init__: Promise<void> | undefined;
 }
 
+async function connectWithWalRecovery(): Promise<Database> {
+  if (globalThis.__cassmart_duckdb__) {
+    return globalThis.__cassmart_duckdb__;
+  }
+
+  let instance: Database;
+  try {
+    instance = await Database.create(DB_FILE_PATH);
+  } catch (err: any) {
+    const errorMsg = String(err?.message || "");
+    const isWalError =
+      errorMsg.includes("replaying WAL file") ||
+      errorMsg.includes("WAL") ||
+      errorMsg.includes("DatabaseManager::GetDefaultDatabase");
+
+    if (isWalError && fs.existsSync(WAL_FILE_PATH)) {
+      console.warn(`[Cassmart DB] Stale or interrupted WAL file detected. Recovering ${DB_FILE_PATH}...`);
+      try {
+        fs.unlinkSync(WAL_FILE_PATH);
+      } catch (unlinkErr) {
+        console.warn("[Cassmart DB] WAL cleanup error:", unlinkErr);
+      }
+      instance = await Database.create(DB_FILE_PATH);
+    } else {
+      throw err;
+    }
+  }
+
+  try {
+    await instance.run("PRAGMA wal_autocheckpoint='1KB';");
+  } catch {}
+
+  return instance;
+}
+
+export async function checkpointDb(): Promise<void> {
+  if (globalThis.__cassmart_duckdb__) {
+    try {
+      await globalThis.__cassmart_duckdb__.run("CHECKPOINT;");
+    } catch (cpErr) {
+      console.warn("[Cassmart DB] Checkpoint notice:", cpErr);
+    }
+  }
+}
+
 // Reuse singleton on globalThis to prevent multiple file lock conflicts across Vite HMR and SSR re-evaluations
 export const db: Database =
-  globalThis.__cassmart_duckdb__ ?? (await Database.create("nbfc-erp.duckdb"));
+  globalThis.__cassmart_duckdb__ ?? (await connectWithWalRecovery());
 
 globalThis.__cassmart_duckdb__ = db;
 
@@ -245,10 +294,29 @@ export async function initDb(): Promise<void> {
       }
     }
 
+    try {
+      await db.run("CHECKPOINT;");
+    } catch (cpErr) {
+      console.warn("[Cassmart DB] Checkpoint notice:", cpErr);
+    }
+
     console.info("[Cassmart DB] Schema initialized: nbfc-erp.duckdb is ready for real data.");
   })();
 
   return globalThis.__cassmart_db_init__;
+}
+
+export async function closeDb(): Promise<void> {
+  if (globalThis.__cassmart_duckdb__) {
+    try {
+      await globalThis.__cassmart_duckdb__.run("CHECKPOINT;");
+    } catch {}
+    try {
+      await globalThis.__cassmart_duckdb__.close();
+    } catch {}
+    globalThis.__cassmart_duckdb__ = undefined;
+    globalThis.__cassmart_db_init__ = undefined;
+  }
 }
 
 // ---------------------------------------------------------------------------

@@ -24,7 +24,10 @@ export function AppShell() {
         </main>
       </div>
       <footer className="w-full border-t border-border/50 bg-background/50 backdrop-blur-sm py-2 px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-muted-foreground mt-auto">
-        <span>Cassmart Micro Foundations • Core Banking & Lending ERP</span>
+        <div className="flex items-center gap-2">
+          <img src="/image.png" alt="Cassmart Logo" className="size-4 object-contain rounded-xs" />
+          <span>Cassmart Micro Foundations • Core Banking & Lending ERP</span>
+        </div>
       </footer>
       <PoweredByGlamarode variant="floating-oval" />
       <CaseDrawer />
