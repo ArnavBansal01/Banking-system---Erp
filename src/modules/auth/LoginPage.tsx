@@ -142,55 +142,79 @@ export function LoginPage() {
   };
 
   return (
-    <div className="h-screen max-h-screen overflow-hidden bg-background text-foreground flex flex-col justify-between selection:bg-primary/20 selection:text-primary relative">
+    <div
+      className="h-screen max-h-screen overflow-hidden bg-background text-foreground flex flex-col justify-between selection:bg-primary/20 selection:text-primary relative"
+      style={{ fontFamily: "Poppins, sans-serif" }}
+    >
       {/* Ambient background glow */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 size-[500px] rounded-full bg-primary/10 blur-[130px]" />
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 size-[500px] rounded-full bg-primary/8 blur-[120px]" />
       </div>
 
-      {/* Top Header */}
-      <header className="relative z-10 w-full border-b border-border/80 bg-background/80 backdrop-blur-xl shrink-0">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-2.5 flex items-center justify-between">
+      {/* Top Header — 60px matching reference */}
+      <header className="relative z-10 h-[60px] w-full border-b border-border bg-background shrink-0">
+        <div className="max-w-6xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <img
-              src="/image.png"
-              alt="Cassmart Logo"
-              className="size-8 rounded-lg object-contain bg-white/10 p-0.5 shadow-xs shrink-0"
-            />
-            <span className="text-sm font-extrabold tracking-tight text-foreground">Cassmart</span>
+            <div className="flex size-8 items-center justify-center rounded-full bg-surface border border-border shadow-xs overflow-hidden">
+              <img
+                src="/image.png"
+                alt="Cassmart Logo"
+                className="size-8 object-cover rounded-full"
+              />
+            </div>
+            <span
+              className="text-sm font-bold tracking-tight text-foreground"
+              style={{ fontFamily: "Montserrat, sans-serif" }}
+            >
+              Cassmart
+            </span>
           </div>
 
           <div className="flex items-center gap-2.5">
-            <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-0.5 rounded-full border border-border/60 bg-surface/60 text-[11px] text-muted-foreground">
-            </div>
-
             <ThemeToggle />
           </div>
         </div>
       </header>
 
       {/* Center Sign In Card */}
-      <main className="relative z-10 flex-1 flex items-center justify-center p-3 sm:p-4 min-h-0">
-        <div className="w-full max-w-[390px]">
-          <div className="rounded-2xl border border-border/80 bg-surface/85 backdrop-blur-2xl p-5 sm:p-6 shadow-2xl space-y-4">
-            {/* Header / Intro */}
-            <div className="text-center space-y-1">
-              <img
-                src="/image.png"
-                alt="Cassmart Logo"
-                className="size-16 mx-auto object-contain drop-shadow-md mb-1.5 rounded-2xl bg-white/5 p-1"
-              />
-              <h1 className="text-xl font-bold tracking-tight text-foreground">Sign In</h1>
-              <p className="text-xs text-muted-foreground">
-                Select your role and enter your credentials
-              </p>
+      <main className="relative z-10 flex-1 flex items-center justify-center p-4 sm:p-6 min-h-0">
+        <div className="w-full max-w-[400px]">
+          {/* Card — solid surface, no glassmorphism, matching reference onboardingModalCard */}
+          <div className="rounded-2xl border border-border bg-card p-7 shadow-[0_20px_48px_-12px_rgba(0,0,0,0.40)] space-y-5">
+            {/* Header / Logo */}
+            <div className="text-center space-y-2 pb-4 border-b border-border">
+              <div className="inline-flex size-14 mx-auto items-center justify-center rounded-full bg-surface border border-border shadow-sm overflow-hidden">
+                <img
+                  src="/image.png"
+                  alt="Cassmart Logo"
+                  className="size-14 object-cover rounded-full"
+                />
+              </div>
+              <div>
+                <h1
+                  className="text-xl text-foreground"
+                  style={{
+                    fontFamily: "Outfit, sans-serif",
+                    fontWeight: 300,
+                    letterSpacing: "-0.02em",
+                  }}
+                >
+                  Sign In
+                </h1>
+                <p className="text-xs text-muted-foreground mt-0.5" style={{ fontWeight: 300 }}>
+                  Select your role and enter your credentials
+                </p>
+              </div>
             </div>
 
-            {/* Form controls */}
-            <form onSubmit={handleSignIn} className="space-y-3">
-              {/* Role Selection Dropdown Menu */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-foreground">
+            {/* Form */}
+            <form onSubmit={handleSignIn} className="space-y-4">
+              {/* Role Selection Dropdown */}
+              <div className="space-y-1.5">
+                <label
+                  className="block text-[11px] font-semibold text-foreground"
+                  style={{ fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em", textTransform: "uppercase" }}
+                >
                   Designated Role
                 </label>
                 <DropdownMenu>
@@ -198,25 +222,25 @@ export function LoginPage() {
                     <button
                       type="button"
                       className={cn(
-                        "w-full flex items-center justify-between gap-2.5 rounded-xl border border-border bg-background/80 px-3 py-2 text-left transition-all cursor-pointer",
+                        "w-full flex items-center justify-between gap-2.5 rounded-xl border border-border bg-background px-3 py-2.5 text-left transition-all cursor-pointer",
                         "hover:border-primary/50 hover:bg-surface-raised",
-                        "focus:outline-none focus:ring-2 focus:ring-primary/40",
+                        "focus:outline-none focus:ring-1 focus:ring-primary/40",
                       )}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         <span
                           className={cn(
-                            "grid size-7 place-items-center rounded-md ring-1 shrink-0",
+                            "grid size-7 place-items-center rounded-lg ring-1 shrink-0",
                             currentOption.iconBg,
                           )}
                         >
                           <CurrentIcon className="size-3.5" />
                         </span>
                         <div className="min-w-0">
-                          <p className="text-xs font-bold text-foreground leading-tight">
+                          <p className="text-xs font-semibold text-foreground leading-tight">
                             {currentOption.role}
                           </p>
-                          <p className="text-[10px] text-muted-foreground truncate">
+                          <p className="text-[10px] text-muted-foreground truncate" style={{ fontWeight: 300 }}>
                             {currentOption.title}
                           </p>
                         </div>
@@ -225,9 +249,10 @@ export function LoginPage() {
                       <div className="flex items-center gap-1.5 shrink-0">
                         <span
                           className={cn(
-                            "rounded-md border px-1.5 py-0.5 text-[9px] font-black uppercase",
+                            "rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase",
                             currentOption.badgeStyle,
                           )}
+                          style={{ fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.04em" }}
                         >
                           {currentOption.badge}
                         </span>
@@ -239,7 +264,7 @@ export function LoginPage() {
                   <DropdownMenuContent
                     align="center"
                     sideOffset={4}
-                    className="w-[340px] max-h-[300px] overflow-y-auto rounded-xl border border-border bg-popover/95 backdrop-blur-2xl p-1.5 shadow-2xl z-50 space-y-0.5"
+                    className="w-[360px] max-h-[300px] overflow-y-auto rounded-2xl border border-border bg-popover p-1.5 shadow-[0_16px_40px_-8px_rgba(0,0,0,0.4)] z-50 space-y-0.5"
                   >
                     {ROLE_OPTIONS.map((opt) => {
                       const isSelected = selectedRole === opt.role;
@@ -249,24 +274,24 @@ export function LoginPage() {
                           key={opt.role}
                           onClick={() => handleRoleSelect(opt.role)}
                           className={cn(
-                            "flex items-center justify-between gap-2.5 rounded-lg px-2.5 py-2 text-xs font-semibold cursor-pointer outline-none transition-colors",
+                            "flex items-center justify-between gap-2.5 rounded-xl px-3 py-2 text-xs font-semibold cursor-pointer outline-none transition-colors",
                             isSelected
-                              ? "bg-primary/15 text-primary border border-primary/25"
+                              ? "bg-primary/12 text-primary border border-primary/20"
                               : "hover:bg-surface-raised text-foreground",
                           )}
                         >
                           <div className="flex items-center gap-2.5 min-w-0">
                             <span
                               className={cn(
-                                "grid size-7 place-items-center rounded-md ring-1 shrink-0",
+                                "grid size-7 place-items-center rounded-lg ring-1 shrink-0",
                                 opt.iconBg,
                               )}
                             >
                               <Icon className="size-3.5" />
                             </span>
                             <div className="min-w-0">
-                              <p className="text-xs font-bold leading-tight">{opt.role}</p>
-                              <p className="text-[10.5px] text-muted-foreground truncate">
+                              <p className="text-xs font-semibold leading-tight">{opt.role}</p>
+                              <p className="text-[10.5px] text-muted-foreground truncate" style={{ fontWeight: 300 }}>
                                 {opt.name}
                               </p>
                             </div>
@@ -275,9 +300,10 @@ export function LoginPage() {
                           <div className="flex items-center gap-1.5 shrink-0">
                             <span
                               className={cn(
-                                "rounded-md border px-1.5 py-0.5 text-[9px] font-black uppercase",
+                                "rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase",
                                 opt.badgeStyle,
                               )}
+                              style={{ fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.04em" }}
                             >
                               {opt.badge}
                             </span>
@@ -291,23 +317,28 @@ export function LoginPage() {
               </div>
 
               {/* Assigned User Info strip */}
-              <div className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-background/60 border border-border/60 text-[11px]">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-surface border border-border/60 text-[11px]">
                 <div className="flex items-center gap-1.5 truncate">
-                  <span className="grid size-5 place-items-center rounded bg-primary/20 text-[9px] font-black text-primary shrink-0">
+                  <span className="grid size-5 place-items-center rounded-md bg-primary/20 text-[9px] font-bold text-primary shrink-0">
                     {currentProfile.avatarInitials}
                   </span>
-                  <span className="font-semibold text-foreground truncate">
+                  <span className="font-medium text-foreground truncate">
                     {currentProfile.name}
                   </span>
                 </div>
-                <span className="text-[10px] text-muted-foreground truncate">
+                <span className="text-[10px] text-muted-foreground truncate" style={{ fontWeight: 300 }}>
                   {currentProfile.scopeLabel}
                 </span>
               </div>
 
-              {/* Editable Email Address */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-foreground">Email Address</label>
+              {/* Email */}
+              <div className="space-y-1.5">
+                <label
+                  className="block text-[11px] font-semibold text-foreground"
+                  style={{ fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em", textTransform: "uppercase" }}
+                >
+                  Email Address
+                </label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
                   <input
@@ -315,14 +346,19 @@ export function LoginPage() {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter email address"
-                    className="w-full rounded-lg border border-border bg-background/80 pl-8 pr-2.5 py-1.5 text-xs font-mono text-foreground focus:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary/40 transition-colors"
+                    className="w-full rounded-xl border border-border bg-background pl-8 pr-3 py-2 text-xs font-mono text-foreground focus:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary/30 transition-colors"
                   />
                 </div>
               </div>
 
-              {/* Editable Password */}
-              <div className="space-y-1">
-                <label className="block text-[11px] font-bold text-foreground">Password</label>
+              {/* Password */}
+              <div className="space-y-1.5">
+                <label
+                  className="block text-[11px] font-semibold text-foreground"
+                  style={{ fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.06em", textTransform: "uppercase" }}
+                >
+                  Password
+                </label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
                   <input
@@ -330,7 +366,7 @@ export function LoginPage() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter password"
-                    className="w-full rounded-lg border border-border bg-background/80 pl-8 pr-8 py-1.5 text-xs font-mono text-foreground focus:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary/40 transition-colors"
+                    className="w-full rounded-xl border border-border bg-background pl-8 pr-9 py-2 text-xs font-mono text-foreground focus:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary/30 transition-colors"
                   />
                   <button
                     type="button"
@@ -343,16 +379,17 @@ export function LoginPage() {
                 </div>
               </div>
 
-              {/* Sign In Action Button */}
+              {/* Sign In Button */}
               <button
                 type="submit"
                 disabled={isValidating}
                 className={cn(
-                  "w-full rounded-xl py-2.5 px-4 text-xs font-bold transition-all duration-200 cursor-pointer shadow-md mt-2",
-                  "bg-primary text-primary-foreground hover:brightness-110 active:scale-[0.99] flex items-center justify-center gap-2",
+                  "w-full rounded-xl py-2.5 px-4 text-xs font-semibold transition-all duration-200 cursor-pointer shadow-md mt-1",
+                  "bg-primary text-primary-foreground hover:brightness-108 active:scale-[0.99] flex items-center justify-center gap-2",
                   "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
                   isValidating && "opacity-90 cursor-wait",
                 )}
+                style={{ fontFamily: "Poppins, sans-serif" }}
               >
                 {isValidating ? (
                   <>
@@ -372,9 +409,11 @@ export function LoginPage() {
         </div>
       </main>
 
-      {/* Clean Bottom Footer */}
-      <footer className="relative z-10 w-full border-t border-border/60 bg-background/60 backdrop-blur-md py-2.5 px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-center text-[11px] text-muted-foreground shrink-0">
-        <p>© 2026 Cassmart Micro Foundations. Persistent Session & Role-Based Access.</p>
+      {/* Footer */}
+      <footer className="relative z-10 h-[52px] w-full border-t border-border bg-background flex items-center justify-between px-6 text-[11px] text-muted-foreground shrink-0">
+        <p style={{ fontFamily: "Poppins, sans-serif", fontWeight: 300 }}>
+          © 2026 Cassmart Micro Foundations. Persistent Session &amp; Role-Based Access.
+        </p>
         <PoweredByGlamarode variant="oval" />
       </footer>
     </div>

@@ -64,7 +64,7 @@ export function CollectionsModule() {
 
   const active = visible.filter((c) => c.stage === "active loan" || c.stage === "disbursed");
   const overdueAmount = buckets.overdue.reduce((a, c) => a + c.emiAmount, 0);
-  const collected = active.reduce(
+  const collected = collectionsCases.reduce(
     (a, c) =>
       a +
       c.payments
@@ -90,7 +90,7 @@ export function CollectionsModule() {
         crumbs={scope.crumbs}
       />
 
-      <KPIGroup>
+      <KPIGroup cols={4}>
         <KPI
           label="Active book"
           value={active.length}

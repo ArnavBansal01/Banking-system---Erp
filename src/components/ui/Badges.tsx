@@ -25,10 +25,11 @@ export function Badge({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-semibold tracking-wide",
+        "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10.5px] font-semibold",
         toneClass[tone],
         className,
       )}
+      style={{ fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.05em" }}
     >
       {children}
     </span>
@@ -120,7 +121,8 @@ export function BouncedBadge() {
   return (
     <span
       title="Previous payment bounced"
-      className="inline-flex items-center gap-1 rounded-md border border-warning/30 bg-warning/12 px-1.5 py-0.5 text-[11px] font-semibold text-warning"
+      className="inline-flex items-center gap-1 rounded-md border border-warning/30 bg-warning/12 px-1.5 py-0.5 text-[10.5px] font-semibold text-warning"
+      style={{ fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.05em" }}
     >
       <AlertTriangle className="size-3" aria-hidden />
       Bounced

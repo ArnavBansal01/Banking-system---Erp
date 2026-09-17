@@ -27,8 +27,11 @@ export function GlassPanel({
   return (
     <div
       className={cn(
-        "rounded-xl border border-border bg-card/70 shadow-panel backdrop-blur-md",
-        padded && "p-4",
+        // Solid surface matching reference chartCard/kpiCard — no backdrop-blur
+        "rounded-2xl border border-border bg-card",
+        "shadow-[0_2px_12px_rgba(0,0,0,0.18)]",
+        "transition-shadow duration-200 hover:shadow-[0_6px_20px_rgba(0,0,0,0.24)]",
+        padded && "p-5",
         accentClass[accent],
         className,
       )}
@@ -53,9 +56,17 @@ export function SectionHeading({
     <div className="mb-3 flex items-center justify-between gap-3">
       <div className="flex items-center gap-2">
         {icon}
-        <h3 className="text-sm font-semibold tracking-tight text-foreground">{title}</h3>
+        <h3
+          className="text-sm font-medium tracking-tight text-foreground"
+          style={{ fontFamily: "Poppins, sans-serif" }}
+        >
+          {title}
+        </h3>
         {count !== undefined && (
-          <span className="num rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground">
+          <span
+            className="rounded-md bg-muted px-1.5 py-0.5 text-[11px] font-semibold text-muted-foreground"
+            style={{ fontFamily: "Montserrat, sans-serif" }}
+          >
             {count}
           </span>
         )}

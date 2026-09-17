@@ -8,12 +8,12 @@ type Variant = "primary" | "secondary" | "ghost" | "danger" | "success";
 
 const variantClass: Record<Variant, string> = {
   primary:
-    "bg-primary text-primary-foreground hover:bg-primary/90 border border-primary/40 shadow-[0_8px_24px_-14px_var(--color-primary)]",
-  success: "bg-success text-success-foreground hover:bg-success/90 border border-success/40",
-  secondary: "bg-secondary text-secondary-foreground hover:bg-accent border border-border",
-  ghost:
-    "bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground border border-transparent",
-  danger: "bg-destructive/12 text-destructive hover:bg-destructive/20 border border-destructive/30",
+    "bg-primary text-primary-foreground hover:brightness-105 border border-primary/30 shadow-[0_4px_14px_-4px_var(--color-primary)]",
+  success: "bg-success text-success-foreground hover:brightness-105 border border-success/30",
+  secondary:
+    "bg-card text-foreground hover:bg-surface-raised border border-border shadow-[0_1px_4px_rgba(0,0,0,0.12)]",
+  ghost: "bg-transparent text-muted-foreground hover:bg-accent hover:text-foreground border border-transparent",
+  danger: "bg-destructive/10 text-destructive hover:bg-destructive/18 border border-destructive/25",
 };
 
 export function ActionButton({
@@ -43,11 +43,12 @@ export function ActionButton({
       onClick={onClick}
       disabled={disabled || loading}
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 rounded-lg font-semibold transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50",
-        size === "sm" ? "px-2.5 py-1.5 text-xs" : "px-3.5 py-2 text-sm",
+        "inline-flex items-center justify-center gap-1.5 rounded-xl font-medium transition-all duration-200 disabled:cursor-not-allowed disabled:opacity-50",
+        size === "sm" ? "px-3 py-1.5 text-xs" : "px-4 py-2 text-sm",
         variantClass[variant],
         className,
       )}
+      style={{ fontFamily: "Poppins, sans-serif" }}
     >
       {loading ? <Loader2 className="size-4 animate-spin" aria-hidden /> : icon}
       {children}
@@ -80,7 +81,8 @@ export function SearchBar({
         aria-label="Search cases"
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-border bg-surface/70 py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-border-strong focus:outline-none"
+        className="w-full rounded-xl border border-border bg-background py-2 pl-9 pr-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-border-strong focus:outline-none focus:ring-1 focus:ring-primary/30 transition-colors"
+        style={{ fontFamily: "Poppins, sans-serif" }}
       />
     </div>
   );
@@ -102,12 +104,16 @@ export function SelectField({
   className?: string | undefined;
 }) {
   return (
-    <label className={cn("flex items-center gap-2 text-xs text-muted-foreground", className)}>
+    <label
+      className={cn("flex items-center gap-2 text-xs text-muted-foreground", className)}
+      style={{ fontFamily: "Poppins, sans-serif" }}
+    >
       <span className="sr-only sm:not-sr-only">{label}</span>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="rounded-lg border border-border bg-surface/70 px-2.5 py-2 text-sm text-foreground focus:border-border-strong focus:outline-none"
+        className="rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-border-strong focus:outline-none focus:ring-1 focus:ring-primary/30 transition-colors"
+        style={{ fontFamily: "Poppins, sans-serif" }}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value} className="bg-popover">
@@ -131,8 +137,8 @@ export function FilterBar({
   active?: boolean | undefined;
 }) {
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card/50 p-2 backdrop-blur-md">
-      <Filter className="ml-1 size-4 text-muted-foreground" aria-hidden />
+    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-2.5 shadow-[0_1px_4px_rgba(0,0,0,0.10)]">
+      <Filter className="ml-0.5 size-3.5 text-muted-foreground" aria-hidden />
       {children}
       {active && onReset && (
         <ActionButton variant="ghost" size="sm" icon={<X className="size-3.5" />} onClick={onReset}>
@@ -159,13 +165,25 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center gap-1.5 rounded-lg border border-dashed border-border/70 text-center",
-        compact ? "px-3 py-5" : "px-4 py-10",
+        "flex flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-border/60 text-center",
+        compact ? "px-3 py-6" : "px-4 py-12",
       )}
     >
-      <div className="text-muted-foreground/70">{icon}</div>
-      <p className="text-sm font-medium text-muted-foreground">{title}</p>
-      {hint && <p className="text-xs text-muted-foreground/70">{hint}</p>}
+      <div className="text-muted-foreground/60">{icon}</div>
+      <p
+        className="text-sm font-medium text-muted-foreground"
+        style={{ fontFamily: "Poppins, sans-serif", fontWeight: 400 }}
+      >
+        {title}
+      </p>
+      {hint && (
+        <p
+          className="text-xs text-muted-foreground/70"
+          style={{ fontFamily: "Poppins, sans-serif", fontWeight: 300 }}
+        >
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
@@ -227,27 +245,50 @@ export function ConfirmationModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-background/75 backdrop-blur-sm"
+        className="fixed inset-0 bg-background/80 backdrop-blur-sm"
         onClick={onCancel}
         aria-hidden
       />
+      {/* Modal card — solid surface matching reference onboardingModalCard */}
       <div
         ref={ref}
         role="dialog"
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className="relative w-full max-w-md rounded-xl border border-border-strong bg-popover p-5 shadow-panel outline-none"
+        className="relative z-10 w-full max-w-md rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-[0_25px_60px_-12px_rgba(0,0,0,0.45)] outline-none max-h-[90vh] overflow-y-auto"
       >
-        <h2 className="text-base font-semibold text-foreground">{title}</h2>
-        {description && <p className="mt-1 text-sm text-muted-foreground">{description}</p>}
+        {/* Modal header with border-bottom matching reference modalTopBar */}
+        <div className="pb-4 mb-4 border-b border-border">
+          <h2
+            className="text-base font-medium text-foreground"
+            style={{ fontFamily: "Outfit, sans-serif", fontWeight: 400 }}
+          >
+            {title}
+          </h2>
+          {description && (
+            <p
+              className="mt-1 text-sm text-muted-foreground"
+              style={{ fontFamily: "Poppins, sans-serif", fontWeight: 300 }}
+            >
+              {description}
+            </p>
+          )}
+        </div>
+
         {details && details.length > 0 && (
-          <dl className="mt-4 divide-y divide-border rounded-lg border border-border bg-surface/60">
+          <dl className="mb-4 divide-y divide-border rounded-xl border border-border bg-surface/60">
             {details.map((d) => (
-              <div key={d.label} className="flex items-center justify-between gap-3 px-3 py-2">
-                <dt className="text-xs text-muted-foreground">{d.label}</dt>
+              <div key={d.label} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                <dt
+                  className="text-xs text-muted-foreground"
+                  style={{ fontFamily: "Poppins, sans-serif" }}
+                >
+                  {d.label}
+                </dt>
                 <dd className="num text-sm font-semibold text-foreground">{d.value}</dd>
               </div>
             ))}
@@ -284,13 +325,19 @@ export function TextField({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-muted-foreground">{label}</span>
+      <span
+        className="mb-1 block text-xs font-medium text-muted-foreground"
+        style={{ fontFamily: "Poppins, sans-serif" }}
+      >
+        {label}
+      </span>
       <input
         type={type}
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-lg border border-border bg-surface/70 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-border-strong focus:outline-none"
+        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-border-strong focus:outline-none focus:ring-1 focus:ring-primary/30 transition-colors"
+        style={{ fontFamily: "Poppins, sans-serif" }}
       />
     </label>
   );
@@ -311,13 +358,19 @@ export function TextArea({
 }) {
   return (
     <label className="block">
-      <span className="mb-1 block text-xs font-medium text-muted-foreground">{label}</span>
+      <span
+        className="mb-1 block text-xs font-medium text-muted-foreground"
+        style={{ fontFamily: "Poppins, sans-serif" }}
+      >
+        {label}
+      </span>
       <textarea
         rows={rows}
         value={value}
         placeholder={placeholder}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full resize-none rounded-lg border border-border bg-surface/70 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-border-strong focus:outline-none"
+        className="w-full resize-none rounded-xl border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:border-border-strong focus:outline-none focus:ring-1 focus:ring-primary/30 transition-colors"
+        style={{ fontFamily: "Poppins, sans-serif" }}
       />
     </label>
   );

@@ -125,7 +125,7 @@ export function EmmsModule() {
         }
       />
 
-      <KPIGroup>
+      <KPIGroup cols={4}>
         <KPI
           label="Total enquiries"
           value={allEnquiries.length}

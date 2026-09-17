@@ -88,7 +88,7 @@ export function CreditModule() {
         crumbs={scope.crumbs}
       />
 
-      <KPIGroup>
+      <KPIGroup cols={4}>
         <KPI
           label="In credit queue"
           value={credit.length}

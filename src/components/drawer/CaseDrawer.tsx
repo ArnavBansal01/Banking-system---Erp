@@ -213,7 +213,7 @@ export function CaseDrawer() {
           toast.success("Field visit recorded");
           break;
         case "payment":
-          recordPayment(c.id, c.emiAmount, "NACH", currentRole);
+          await recordPayment(c.id, c.emiAmount, "NACH", currentRole);
           toast.success("Payment recorded", { description: `${inr(c.emiAmount)} received` });
           break;
         case "nextFollowUp":
@@ -530,11 +530,16 @@ export function CaseDrawer() {
 
               {(c.stage === "active loan" || c.stage === "disbursed") && (
                 <>
-                  {allow("recordPayment") && (
-                    <ActionButton variant="primary" size="sm" onClick={() => setModal("payment")}>
-                      Record Payment
-                    </ActionButton>
-                  )}
+                  {allow("recordPayment") &&
+                    (collection?.paidThisCycle ? (
+                      <ActionButton variant="ghost" size="sm" onClick={() => setModal("payment")}>
+                        Record Pre-payment
+                      </ActionButton>
+                    ) : (
+                      <ActionButton variant="primary" size="sm" onClick={() => setModal("payment")}>
+                        Record Payment
+                      </ActionButton>
+                    ))}
                   {allow("recordFollowUp") && (
                     <ActionButton size="sm" onClick={() => setModal("followup")}>
                       Record Follow-up

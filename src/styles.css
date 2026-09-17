@@ -7,10 +7,15 @@
 /*
  * NBFC design system — refined dark enterprise theme.
  * All colors are oklch tokens. Never hardcode colors in components.
+ * Font stack matches casmaartt reference: Outfit (headings) · Poppins (body/nav)
+ *   Montserrat (data labels) · Space Grotesk (badges/accent)
  */
 
 @theme inline {
-  --font-sans: "Plus Jakarta Sans", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Poppins", "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Outfit", "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-data: "Montserrat", "Poppins", ui-sans-serif, system-ui, sans-serif;
+  --font-accent: "Space Grotesk", "Montserrat", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
   --radius-sm: calc(var(--radius) - 4px);
@@ -55,7 +60,8 @@
 }
 
 :root {
-  --radius: 0.875rem;
+  /* Increase base radius to 16px to match reference card style */
+  --radius: 1rem;
 
   --background: oklch(0.16 0.014 258);
   --foreground: oklch(0.97 0.004 250);
@@ -91,8 +97,10 @@
   --input: oklch(1 0 0 / 12%);
   --ring: oklch(0.72 0.13 195 / 60%);
 
-  --panel-shadow: 0 1px 0 0 oklch(1 0 0 / 4%) inset, 0 24px 48px -24px oklch(0 0 0 / 60%);
+  --panel-shadow: 0 2px 12px -2px oklch(0 0 0 / 30%), 0 1px 0 0 oklch(1 0 0 / 4%) inset;
   --drawer-shadow: -32px 0 64px -24px oklch(0 0 0 / 70%);
+  --card-shadow: 0 2px 12px oklch(0 0 0 / 20%);
+  --card-shadow-hover: 0 8px 24px oklch(0 0 0 / 35%);
   --glass-bg: oklch(1 0 0 / 4%);
   --scrollbar-thumb: oklch(1 0 0 / 12%);
   --glow-1: oklch(0.72 0.13 195 / 10%);
@@ -145,8 +153,10 @@ html.light {
   --glow-1: oklch(0.55 0.12 205 / 8%);
   --glow-2: oklch(0.55 0.17 300 / 6%);
 
-  --panel-shadow: 0 1px 0 0 oklch(1 0 0 / 60%) inset, 0 18px 40px -28px oklch(0.2 0.02 258 / 30%);
+  --panel-shadow: 0 2px 12px -2px oklch(0.2 0.02 258 / 10%), 0 1px 0 0 oklch(1 0 0 / 60%) inset;
   --drawer-shadow: -32px 0 64px -32px oklch(0.2 0.02 258 / 25%);
+  --card-shadow: 0 2px 12px oklch(0.2 0.02 258 / 6%);
+  --card-shadow-hover: 0 8px 24px oklch(0.2 0.02 258 / 12%);
 }
 
 @layer base {
@@ -166,12 +176,21 @@ html.light {
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-sans);
+    font-weight: 400;
+    line-height: 1.5;
     font-feature-settings: "cv02", "ss01";
     -webkit-font-smoothing: antialiased;
     background-image:
       radial-gradient(900px 480px at 12% -8%, var(--glow-1), transparent 60%),
       radial-gradient(760px 420px at 92% 0%, var(--glow-2), transparent 62%);
     background-attachment: fixed;
+  }
+
+  /* Headings use Outfit — thin, elegant */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    font-weight: 400;
+    letter-spacing: -0.02em;
   }
 
   button:not(:disabled),
@@ -190,8 +209,8 @@ html.light {
   }
 
   ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
+    width: 7px;
+    height: 7px;
   }
   ::-webkit-scrollbar-track {
     background: transparent;
@@ -199,18 +218,76 @@ html.light {
   ::-webkit-scrollbar-thumb {
     background: var(--scrollbar-thumb);
     border-radius: 999px;
-    border: 3px solid transparent;
-    background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-muted-foreground);
   }
 }
 
+/* ============================================================
+   Utility Classes — Design System Helpers
+   ============================================================ */
+
+/* Glassmorphism (used sparingly, only for overlays) */
 @utility glass {
   background-color: var(--glass-bg);
   backdrop-filter: blur(14px);
   border: 1px solid var(--color-border);
 }
 
+/* Tabular numeric rendering */
 @utility num {
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
+  font-family: var(--font-data);
+}
+
+/* Heading display style — Outfit thin */
+@utility heading-display {
+  font-family: var(--font-heading);
+  font-weight: 300;
+  letter-spacing: -0.025em;
+}
+
+/* Section label — Space Grotesk uppercase */
+@utility section-label {
+  font-family: var(--font-accent);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-muted-foreground);
+}
+
+/* Data label — Montserrat */
+@utility data-label {
+  font-family: var(--font-data);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* Card surface — solid, no blur (matches reference kpiCard/chartCard) */
+@utility card-surface {
+  background-color: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--card-shadow);
+}
+
+/* Subtle module fade-in */
+@keyframes moduleIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@utility module-fade-in {
+  animation: moduleIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
 }

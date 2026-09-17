@@ -30,26 +30,39 @@ export function DataList({
 }) {
   if (items.length === 0) return <>{empty}</>;
   return (
-    <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-      {items.map((item) => (
-        <li key={item.id}>
+    <ul className="overflow-hidden rounded-xl border border-border">
+      {items.map((item, index) => (
+        <li
+          key={item.id}
+          className={cn(index < items.length - 1 && "border-b border-border/50")}
+        >
           <button
             type="button"
             onClick={() => onSelect?.(item.id)}
             className={cn(
-              "flex w-full items-center gap-3 border-l-2 bg-surface/40 px-3 py-2.5 text-left transition-colors duration-200 hover:bg-accent/60",
+              "flex w-full items-center gap-3 border-l-[3px] bg-card px-4 py-3 text-left transition-colors duration-150 hover:bg-surface-raised",
               accentClass[item.accent ?? "none"],
             )}
           >
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-foreground">{item.primary}</p>
+              <p
+                className="truncate text-[13px] font-medium text-foreground"
+                style={{ fontFamily: "Poppins, sans-serif" }}
+              >
+                {item.primary}
+              </p>
               {item.secondary && (
-                <p className="mt-0.5 truncate text-xs text-muted-foreground">{item.secondary}</p>
+                <p
+                  className="mt-0.5 truncate text-xs text-muted-foreground"
+                  style={{ fontFamily: "Poppins, sans-serif", fontWeight: 300 }}
+                >
+                  {item.secondary}
+                </p>
               )}
             </div>
             {item.meta && <div className="flex shrink-0 items-center gap-2">{item.meta}</div>}
             {onSelect && (
-              <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              <ChevronRight className="size-4 shrink-0 text-muted-foreground/50" aria-hidden />
             )}
           </button>
         </li>
@@ -79,13 +92,33 @@ export function Timeline({
             aria-hidden
           />
           <div className="flex items-baseline justify-between gap-3">
-            <p className="text-sm font-semibold text-foreground">{e.action}</p>
-            <span className="num shrink-0 text-[11px] text-muted-foreground">
+            <p
+              className="text-sm font-medium text-foreground"
+              style={{ fontFamily: "Poppins, sans-serif" }}
+            >
+              {e.action}
+            </p>
+            <span
+              className="num shrink-0 text-[11px] text-muted-foreground"
+              style={{ fontFamily: "Montserrat, sans-serif" }}
+            >
               {e.timestamp.replace("T", " · ")}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground">{e.actor}</p>
-          {e.note && <p className="mt-1 text-xs text-muted-foreground/80">{e.note}</p>}
+          <p
+            className="text-xs text-muted-foreground"
+            style={{ fontFamily: "Poppins, sans-serif", fontWeight: 300 }}
+          >
+            {e.actor}
+          </p>
+          {e.note && (
+            <p
+              className="mt-1 text-xs text-muted-foreground/80"
+              style={{ fontFamily: "Poppins, sans-serif", fontWeight: 300 }}
+            >
+              {e.note}
+            </p>
+          )}
         </li>
       ))}
     </ol>
@@ -97,10 +130,18 @@ export function KeyValue({ rows }: { rows: { label: string; value: ReactNode }[]
     <dl className="grid grid-cols-2 gap-x-4 gap-y-3">
       {rows.map((r) => (
         <div key={r.label} className="min-w-0">
-          <dt className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <dt
+            className="text-[10.5px] font-semibold uppercase tracking-[0.06em] text-muted-foreground"
+            style={{ fontFamily: "Space Grotesk, sans-serif" }}
+          >
             {r.label}
           </dt>
-          <dd className="num mt-0.5 truncate text-sm font-semibold text-foreground">{r.value}</dd>
+          <dd
+            className="num mt-0.5 truncate text-sm font-medium text-foreground"
+            style={{ fontFamily: "Montserrat, sans-serif" }}
+          >
+            {r.value}
+          </dd>
         </div>
       ))}
     </dl>
@@ -124,7 +165,7 @@ export function ProgressBar({
     danger: "bg-destructive",
   }[tone];
   return (
-    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
       <div
         className={cn("h-full rounded-full transition-all duration-500", toneClass)}
         style={{ width: `${pctValue}%` }}

@@ -88,7 +88,7 @@ export function OperationsModule() {
         crumbs={scope.crumbs}
       />
 
-      <KPIGroup>
+      <KPIGroup cols={4}>
         <KPI
           label="Operations queue"
           value={ops.length}

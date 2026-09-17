@@ -9,8 +9,10 @@ import {
   getAllLoans,
   getLoansByStage,
   getLoanDetails,
+  recordLoanPayment,
   type LoanDetailRecord,
   type CaseQueryDbRecord,
+  type InstallmentDbRecord,
 } from "../../app/server/caseFunctions";
 import type { LoanRow } from "../../app/server/db";
 import type {
@@ -149,21 +151,50 @@ export function mapLoanRowToCase(row: LoanRow | LoanDetailRecord): LoanCase {
     resolvedAt: q.resolved_at ? String(q.resolved_at).slice(0, 16) : undefined,
   }));
 
+  const rawInstallments: InstallmentDbRecord[] =
+    "installments" in row && Array.isArray(row.installments)
+      ? (row.installments as InstallmentDbRecord[])
+      : [];
+
+  const mappedPayments = rawInstallments.map((inst) => ({
+    id: inst.id,
+    amount: inst.amount ?? row.emi_amount ?? 0,
+    date: inst.payment_date || inst.paid_at || new Date().toISOString().slice(0, 10),
+    mode: inst.payment_method || "NACH",
+  }));
+
+  const mappedEmiHistory = rawInstallments.map((inst) => {
+    const pDate = inst.payment_date || inst.paid_at || "";
+    const cycle = pDate ? pDate.slice(0, 7) : (inst.due_date ? inst.due_date.slice(0, 7) : "");
+    return {
+      cycleMonth: cycle,
+      paidDate: pDate || null,
+      bounced: false,
+    };
+  });
+
+  const totalPaid = mappedPayments.reduce((sum, p) => sum + p.amount, 0);
+  const remainingOutstanding = Math.max(0, (row.amount ?? 0) - totalPaid);
+  const effectiveStage =
+    remainingOutstanding <= 0 && (row.stage === "active loan" || row.stage === "disbursed")
+      ? "recovered"
+      : row.stage;
+
   return {
     id: row.id,
     clientName: borrower || row.purpose || `Loan ${row.id}`,
     loanAmount: row.amount ?? 0,
     emiAmount: row.emi_amount ?? 0,
-    outstanding: row.amount ?? 0,
-    stage: row.stage,
+    outstanding: remainingOutstanding,
+    stage: effectiveStage,
     workflowStatus:
-      row.stage === "credit approved"
+      effectiveStage === "credit approved"
         ? "Verification"
-        : row.stage === "disbursed" || row.stage === "active loan"
+        : effectiveStage === "disbursed" || effectiveStage === "active loan"
           ? "DUE"
-          : row.stage === "recovered"
+          : effectiveStage === "recovered"
             ? "RESOLVED"
-            : row.stage === "application"
+            : effectiveStage === "application"
               ? "New"
               : "New Enquiry",
     queryRaised: mappedQueries.some((q) => q.status === "OPEN"),
@@ -186,8 +217,8 @@ export function mapLoanRowToCase(row: LoanRow | LoanDetailRecord): LoanCase {
     disbursedAmount: row.amount ?? 0,
     dueDayStart: 1,
     dueDayEnd: 5,
-    emiHistory: [],
-    payments: [],
+    emiHistory: mappedEmiHistory,
+    payments: mappedPayments,
     visits: [],
     collectionQueue: "none",
     applicant: {
@@ -298,7 +329,7 @@ interface AppState {
   ) => Promise<void>;
   recordFollowUp: (id: string, note: string, actor: string) => void;
   recordVisit: (id: string, note: string, actor: string) => void;
-  recordPayment: (id: string, amount: number, mode: string, actor: string) => void;
+  recordPayment: (id: string, amount: number, mode: string, actor: string) => Promise<void>;
   setNextFollowUp: (id: string, date: string, actor: string) => void;
   escalateCase: (id: string, reason: string, actor: string) => void;
   resolveCase: (id: string, note: string, actor: string) => Promise<void>;
@@ -680,24 +711,65 @@ export const useAppStore = create<AppState>()((set, get) => {
         { action: "Field visit recorded", actor, note },
       ),
 
-    recordPayment: (id, amount, mode, actor) =>
+    recordPayment: async (id, amount, mode, actor) => {
+      const demoDate = get().currentDemoDate;
+      const cycleMonth = demoDate.slice(0, 7);
+
+      try {
+        await recordLoanPayment({
+          data: {
+            loan_id: id,
+            amount,
+            payment_method: mode,
+            paid_date: demoDate,
+            recorded_by: actor,
+          },
+        });
+      } catch (err) {
+        console.warn("[Cassmart] DuckDB recordLoanPayment notice:", err);
+      }
+
       patch(
         id,
-        (c) => ({
-          ...c,
-          outstanding: Math.max(0, c.outstanding - amount),
-          payments: [
-            ...c.payments,
-            {
-              id: uid("p"),
-              amount,
-              date: stamp(get().currentDemoDate).slice(0, 10),
-              mode,
-            },
-          ],
-        }),
+        (c) => {
+          const newOutstanding = Math.max(0, c.outstanding - amount);
+          const isFullyRecovered = newOutstanding <= 0;
+
+          const existingEmiIndex = c.emiHistory.findIndex((e) => e.cycleMonth === cycleMonth);
+          const updatedEmiHistory =
+            existingEmiIndex >= 0
+              ? c.emiHistory.map((e, idx) =>
+                  idx === existingEmiIndex ? { ...e, paidDate: demoDate, bounced: false } : e,
+                )
+              : [
+                  ...c.emiHistory,
+                  {
+                    cycleMonth,
+                    paidDate: demoDate,
+                    bounced: false,
+                  },
+                ];
+
+          return {
+            ...c,
+            outstanding: newOutstanding,
+            stage: isFullyRecovered ? "recovered" : c.stage === "disbursed" ? "active loan" : c.stage,
+            workflowStatus: "RESOLVED",
+            payments: [
+              ...c.payments,
+              {
+                id: uid("p"),
+                amount,
+                date: demoDate,
+                mode,
+              },
+            ],
+            emiHistory: updatedEmiHistory,
+          };
+        },
         { action: `Payment collected (₹${amount.toLocaleString()})`, actor },
-      ),
+      );
+    },
 
     setNextFollowUp: (id, date, actor) =>
       patch(id, (c) => ({ ...c, nextFollowUp: date }), {
@@ -725,7 +797,15 @@ export const useAppStore = create<AppState>()((set, get) => {
       // 2. ONLY upon confirmed DuckDB write, update local state
       patch(
         id,
-        (c) => ({ ...c, escalated: false, workflowStatus: "RESOLVED", stage: "recovered" }),
+        (c) => {
+          const isFullyPaid = c.outstanding <= 0;
+          return {
+            ...c,
+            escalated: false,
+            workflowStatus: "RESOLVED",
+            stage: isFullyPaid ? "recovered" : c.stage,
+          };
+        },
         { action: "Account resolved", actor, note },
       );
     },

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import React, { type ReactNode } from "react";
 import { ArrowUpRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -46,35 +46,47 @@ export function KPI({
     <Comp
       {...(isClickable ? { onClick, type: "button" as const } : {})}
       className={cn(
-        "group relative flex w-full flex-col gap-2 rounded-xl border p-3.5 text-left transition-all duration-200 select-none",
+        // Base: solid card surface matching reference kpiCard
+        "group relative flex w-full flex-col gap-3 rounded-2xl border p-5 text-left select-none",
+        "transition-all duration-200",
         isClickable
-          ? "cursor-pointer border-border/90 bg-card/85 shadow-2xs hover:border-primary/60 hover:bg-surface-raised hover:shadow-md hover:-translate-y-0.5 active:translate-y-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
-          : "cursor-default border-border/50 bg-card/45 opacity-95",
-        isActive && "border-primary bg-primary/10 ring-1 ring-primary/40 shadow-sm",
+          ? [
+              "cursor-pointer",
+              "border-border bg-card",
+              "shadow-[0_2px_12px_rgba(0,0,0,0.15)]",
+              "hover:border-border-strong hover:shadow-[0_6px_20px_rgba(0,0,0,0.22)] hover:-translate-y-0.5",
+              "active:translate-y-0 active:shadow-[0_2px_8px_rgba(0,0,0,0.12)]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+            ].join(" ")
+          : "cursor-default border-border bg-card shadow-[0_2px_8px_rgba(0,0,0,0.10)]",
+        isActive && "border-primary/60 ring-1 ring-primary/30 bg-primary/[0.04]",
       )}
     >
+      {/* Top row: label + click hint pill + icon */}
       <div className="flex items-start justify-between gap-2">
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
           <span
             className={cn(
-              "text-[11px] font-semibold uppercase tracking-[0.08em] transition-colors",
+              "text-[11px] font-semibold uppercase transition-colors",
               isActive
-                ? "text-primary font-bold"
+                ? "text-primary"
                 : isClickable
                   ? "text-muted-foreground group-hover:text-foreground"
                   : "text-muted-foreground",
             )}
+            style={{ fontFamily: "Space Grotesk, sans-serif", letterSpacing: "0.08em" }}
           >
             {label}
           </span>
           {isClickable && (
             <span
               className={cn(
-                "inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold tracking-wide transition-all",
+                "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold tracking-wide transition-all",
                 isActive
-                  ? "bg-primary text-primary-foreground shadow-2xs font-bold"
+                  ? "bg-primary text-primary-foreground shadow-xs"
                   : "bg-primary/10 text-primary border border-primary/20 group-hover:bg-primary group-hover:text-primary-foreground group-hover:border-primary",
               )}
+              style={{ fontFamily: "Space Grotesk, sans-serif" }}
             >
               <span>{isActive ? "Filtered" : clickHint}</span>
               <ArrowUpRight className="size-2.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
@@ -85,7 +97,7 @@ export function KPI({
         {icon && (
           <span
             className={cn(
-              "grid size-7 place-items-center rounded-lg shrink-0 transition-transform duration-200",
+              "grid size-8 place-items-center rounded-xl shrink-0 transition-transform duration-200",
               iconTone[status],
               isClickable && "group-hover:scale-105",
             )}
@@ -95,29 +107,51 @@ export function KPI({
         )}
       </div>
 
-      <span className={cn("num text-2xl font-bold leading-none", valueTone[status])}>{value}</span>
+      {/* Large thin figure — matches reference largeThinFigure */}
+      <span
+        className={cn("num leading-none", valueTone[status])}
+        style={{
+          fontFamily: "Outfit, sans-serif",
+          fontSize: "2.25rem",
+          fontWeight: 300,
+          letterSpacing: "-0.03em",
+        }}
+      >
+        {value}
+      </span>
 
-      {support && <span className="text-xs text-muted-foreground leading-tight">{support}</span>}
+      {support && (
+        <span
+          className="text-xs text-muted-foreground leading-tight"
+          style={{ fontFamily: "Poppins, sans-serif", fontWeight: 300 }}
+        >
+          {support}
+        </span>
+      )}
     </Comp>
   );
 }
 
 export function KPIGroup({
   children,
-  cols = 5,
+  cols,
 }: {
   children: ReactNode;
   cols?: number | undefined;
 }) {
+  const count = React.Children.count(children);
+  const effectiveCols = cols ?? (count === 4 ? 4 : count === 6 ? 6 : count || 4);
+
   return (
     <div
       className={cn(
-        "grid gap-3",
-        cols === 4
-          ? "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4"
-          : cols === 6
-            ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
-            : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5",
+        "grid gap-4 w-full",
+        effectiveCols === 4 && "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4",
+        effectiveCols === 6 && "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-6",
+        effectiveCols === 5 && "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5",
+        effectiveCols === 3 && "grid-cols-1 sm:grid-cols-3",
+        effectiveCols === 2 && "grid-cols-1 sm:grid-cols-2",
+        effectiveCols === 1 && "grid-cols-1",
       )}
     >
       {children}
@@ -137,13 +171,37 @@ export function MetricCard({
   children?: ReactNode | undefined;
 }) {
   return (
-    <div className="rounded-xl border border-border bg-card/70 p-4 backdrop-blur-md">
-      <div className="flex items-baseline justify-between gap-3">
-        <h3 className="text-sm font-semibold text-foreground">{title}</h3>
-        {value && <span className="num text-lg font-bold text-foreground">{value}</span>}
+    <div className="rounded-2xl border border-border bg-card p-5 shadow-[0_2px_12px_rgba(0,0,0,0.12)]">
+      <div className="flex items-baseline justify-between gap-3 pb-3 border-b border-border">
+        <h3
+          className="text-[13px] font-medium text-muted-foreground"
+          style={{ fontFamily: "Poppins, sans-serif" }}
+        >
+          {title}
+        </h3>
+        {value && (
+          <span
+            className="num leading-none text-foreground"
+            style={{
+              fontFamily: "Outfit, sans-serif",
+              fontSize: "1.5rem",
+              fontWeight: 300,
+              letterSpacing: "-0.03em",
+            }}
+          >
+            {value}
+          </span>
+        )}
       </div>
       {children && <div className="mt-3">{children}</div>}
-      {footer && <div className="mt-3 text-xs text-muted-foreground">{footer}</div>}
+      {footer && (
+        <div
+          className="mt-3 text-xs text-muted-foreground"
+          style={{ fontFamily: "Poppins, sans-serif" }}
+        >
+          {footer}
+        </div>
+      )}
     </div>
   );
 }

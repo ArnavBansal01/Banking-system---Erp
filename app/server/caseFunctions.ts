@@ -22,6 +22,7 @@ async function getDb() {
       "ALTER TABLE queries ADD COLUMN IF NOT EXISTS resolved_by VARCHAR",
       "ALTER TABLE queries ADD COLUMN IF NOT EXISTS resolved_by_role VARCHAR",
       "ALTER TABLE queries ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMP",
+      "ALTER TABLE installments ADD COLUMN IF NOT EXISTS amount DOUBLE",
     ];
     for (const sql of cols) {
       try {
@@ -100,7 +101,7 @@ export interface AddLoanNoteInput {
 export interface LoanNoteRecord {
   id: string;
   loan_id: string;
-  added_by_emp_id: string | null;
+  added_by_emp_id?: string | null;
   content: string;
   created_at: string;
 }
@@ -118,6 +119,36 @@ export interface ResolveCaseResult {
   updated_at: string;
 }
 
+export interface InstallmentDbRecord {
+  id: string;
+  loan_id: string;
+  due_date: string | null;
+  state: string;
+  payment_date: string | null;
+  transaction_id: string | null;
+  paid_at: string | null;
+  payment_method: string | null;
+  amount: number | null;
+}
+
+export interface RecordLoanPaymentInput {
+  loan_id: string;
+  amount: number;
+  payment_method?: string | undefined;
+  paid_date?: string | undefined;
+  recorded_by?: string | undefined;
+}
+
+export interface RecordLoanPaymentResult {
+  success: boolean;
+  installment_id: string;
+  loan_id: string;
+  amount: number;
+  payment_date: string;
+  remaining_outstanding: number;
+  stage: string;
+}
+
 export interface GetLoanDetailsInput {
   loan_id: string;
 }
@@ -129,6 +160,7 @@ export interface LoanDetailRecord extends LoanRow {
   borrower_aadhar_no: string | null;
   borrower_pan_no: string | null;
   queries?: CaseQueryDbRecord[];
+  installments?: InstallmentDbRecord[];
 }
 
 // ---------------------------------------------------------------------------
@@ -406,9 +438,19 @@ export const getAllLoans = createServerFn({ method: "GET" }).handler(
         queriesRows = [];
       }
 
+      let installmentsRows: InstallmentDbRecord[] = [];
+      try {
+        installmentsRows = ((await db.all("SELECT * FROM installments ORDER BY payment_date ASC, paid_at ASC")) ??
+          []) as InstallmentDbRecord[];
+      } catch (instErr) {
+        console.warn("[Cassmart DB] Non-fatal: failed to fetch installments table:", instErr);
+        installmentsRows = [];
+      }
+
       return (rows ?? []).map((loan) => ({
         ...(loan as LoanDetailRecord),
         queries: queriesRows.filter((q) => q.loan_id === (loan as LoanDetailRecord).id),
+        installments: installmentsRows.filter((i) => i.loan_id === (loan as LoanDetailRecord).id),
       }));
     } catch (error) {
       console.error("[Cassmart DB] Failed to fetch all loans:", error);
@@ -493,7 +535,19 @@ export const getLoanDetails = createServerFn({ method: "GET" })
         return null;
       }
 
-      return rows[0] as LoanDetailRecord;
+      let loanInstallments: InstallmentDbRecord[] = [];
+      try {
+        loanInstallments = ((await db.all("SELECT * FROM installments WHERE loan_id = ? ORDER BY payment_date ASC, paid_at ASC", loan_id)) ??
+          []) as InstallmentDbRecord[];
+      } catch (instErr) {
+        console.warn("[Cassmart DB] Non-fatal: failed to fetch installments for loan:", instErr);
+        loanInstallments = [];
+      }
+
+      return {
+        ...(rows[0] as LoanDetailRecord),
+        installments: loanInstallments,
+      };
     } catch (error) {
       console.error(`[Cassmart DB] Failed to fetch loan details for '${loan_id}':`, error);
       throw new Error(`Failed to retrieve loan details: ${(error as Error).message}`);
@@ -699,3 +753,98 @@ export const resolveCaseQuery = createServerFn({ method: "POST" })
       throw new Error(`Failed to resolve query: ${(error as Error).message}`);
     }
   });
+
+// ---------------------------------------------------------------------------
+// 11. recordLoanPayment (POST)
+// Records payment into installments table, updates outstanding balance, and updates loan stage.
+// ---------------------------------------------------------------------------
+
+export const recordLoanPayment = createServerFn({ method: "POST" })
+  .validator((input: RecordLoanPaymentInput): Required<RecordLoanPaymentInput> => {
+    if (!input || typeof input !== "object") {
+      throw new Error("Invalid payload: loan_id and amount are required");
+    }
+    if (!input.loan_id || typeof input.loan_id !== "string" || !input.loan_id.trim()) {
+      throw new Error("Invalid loan_id: non-empty string required");
+    }
+    const amount = Number(input.amount);
+    if (isNaN(amount) || amount <= 0) {
+      throw new Error("Invalid amount: positive payment amount required");
+    }
+    return {
+      loan_id: input.loan_id.trim(),
+      amount,
+      payment_method: input.payment_method?.trim() || "NACH",
+      paid_date: input.paid_date?.trim() || new Date().toISOString().slice(0, 10),
+      recorded_by: input.recorded_by?.trim() || "Officer",
+    };
+  })
+  .handler(async ({ data }): Promise<RecordLoanPaymentResult> => {
+    try {
+      const db = await getDb();
+      const instId = `INST-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const txnId = `TXN-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const paidDate: string = data.paid_date || new Date().toISOString().slice(0, 10);
+      const paymentMethod: string = data.payment_method || "NACH";
+
+      // 1. Insert into installments table
+      await db.run(
+        `INSERT INTO installments (id, loan_id, due_date, state, payment_date, transaction_id, paid_at, payment_method, amount)
+         VALUES (?, ?, ?, 'paid', ?, ?, CURRENT_TIMESTAMP, ?, ?)`,
+        instId,
+        data.loan_id,
+        paidDate,
+        paidDate,
+        txnId,
+        paymentMethod,
+        data.amount,
+      );
+
+      // 2. Fetch loan to calculate remaining balance
+      const loanRows = await db.all("SELECT * FROM loans WHERE id = ?", data.loan_id);
+      const loan = (loanRows && loanRows[0]) as LoanRow | undefined;
+      const originalAmount = loan?.amount ?? 0;
+
+      // 3. Compute total payments to date for this loan
+      const paidRows = await db.all(
+        "SELECT COALESCE(SUM(amount), 0) as total_paid FROM installments WHERE loan_id = ? AND state = 'paid'",
+        data.loan_id,
+      );
+      const firstPaidRow = (paidRows && paidRows[0]) as Record<string, any> | undefined;
+      const totalPaid = Number(firstPaidRow?.["total_paid"] ?? 0);
+      const remaining = Math.max(0, originalAmount - totalPaid);
+
+      // If fully repaid, mark recovered; otherwise ensure active loan
+      let targetStage: string = loan?.stage || "active loan";
+      if (remaining <= 0 && targetStage === "active loan") {
+        targetStage = "recovered";
+        await db.run("UPDATE loans SET stage = 'recovered' WHERE id = ?", data.loan_id);
+      }
+
+      // 4. Log to loan_notes
+      const noteId = `NOTE-${Date.now().toString(36).toUpperCase()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      await db.run(
+        `INSERT INTO loan_notes (id, loan_id, added_by_emp_id, content) VALUES (?, ?, ?, ?)`,
+        noteId,
+        data.loan_id,
+        data.recorded_by || null,
+        `Payment of ₹${data.amount.toLocaleString("en-IN")} received via ${paymentMethod} (Txn: ${txnId})`,
+      );
+
+      try { await db.run("CHECKPOINT;"); } catch {}
+
+      return {
+        success: true,
+        installment_id: instId,
+        loan_id: data.loan_id,
+        amount: data.amount,
+        payment_date: paidDate,
+        remaining_outstanding: remaining,
+        stage: targetStage,
+      };
+    } catch (error) {
+      console.error(`[Cassmart DB] Failed to record payment for loan '${data.loan_id}':`, error);
+      throw new Error(`Failed to record payment: ${(error as Error).message}`);
+    }
+  });
+

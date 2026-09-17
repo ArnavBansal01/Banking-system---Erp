@@ -26,16 +26,29 @@ export function getCollectionState(c: LoanCase, demoDate: string): CollectionSta
   const hasBounced = c.emiHistory.some((e) => e.bounced);
   const dueWindow = `${MONTHS[m - 1]} ${c.dueDayStart} – ${MONTHS[m - 1]} ${c.dueDayEnd}`;
 
-  if (c.workflowStatus === "RESOLVED" || paidThisCycle) {
+  if (c.stage === "recovered" || c.outstanding <= 0) {
     return {
       urgency: "resolved",
       status: "RESOLVED",
-      label: "Resolved",
+      label: "Recovered / Closed",
       overdueDays: 0,
       daysToDue: 0,
       dueWindow,
       hasBounced,
-      paidThisCycle,
+      paidThisCycle: true,
+    };
+  }
+
+  if (paidThisCycle) {
+    return {
+      urgency: "resolved",
+      status: "RESOLVED",
+      label: "Paid this cycle",
+      overdueDays: 0,
+      daysToDue: 0,
+      dueWindow,
+      hasBounced,
+      paidThisCycle: true,
     };
   }
 

@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/Controls";
 
 export function KanbanBoard({ children }: { children: ReactNode }) {
-  return <div className="flex gap-3 overflow-x-auto pb-2">{children}</div>;
+  return <div className="flex gap-4 overflow-x-auto pb-2">{children}</div>;
 }
 
 export function KanbanColumn({
@@ -62,22 +62,31 @@ export function KanbanColumn({
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
       className={cn(
-        "flex min-w-[290px] flex-1 flex-col rounded-xl border transition-colors duration-150 backdrop-blur-md",
+        "flex min-w-[300px] flex-1 flex-col rounded-2xl border transition-all duration-150",
         isOver
           ? "border-primary/60 bg-primary/5 ring-2 ring-primary/20"
-          : "border-border bg-surface/40",
+          : "border-border bg-card shadow-[0_2px_12px_rgba(0,0,0,0.12)]",
       )}
     >
-      <header className="flex items-center justify-between gap-2 border-b border-border px-3 py-2.5">
+      {/* Column header — solid muted bg matching reference */}
+      <header className="flex items-center justify-between gap-2 rounded-t-2xl border-b border-border bg-muted/40 px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className={cn("size-1.5 rounded-full", dot)} aria-hidden />
-          <h3 className="text-sm font-semibold text-foreground">{title}</h3>
+          <span className={cn("size-2 rounded-full", dot)} aria-hidden />
+          <h3
+            className="text-sm font-medium text-foreground"
+            style={{ fontFamily: "Poppins, sans-serif" }}
+          >
+            {title}
+          </h3>
         </div>
-        <span className="num rounded-md bg-muted px-1.5 py-0.5 text-xs font-semibold text-muted-foreground">
+        <span
+          className="rounded-md bg-background px-2 py-0.5 text-xs font-semibold text-muted-foreground border border-border"
+          style={{ fontFamily: "Montserrat, sans-serif" }}
+        >
           {count}
         </span>
       </header>
-      <div className="flex flex-col gap-2 p-2 min-h-[140px]">
+      <div className="flex flex-col gap-2 p-3 min-h-[160px]">
         {count === 0 ? (
           <EmptyState compact title={emptyLabel} icon={<Inbox className="size-5" />} />
         ) : (
@@ -106,7 +115,7 @@ export function KanbanCard({
   children: ReactNode;
 }) {
   const border = {
-    none: "border-l-border",
+    none: "border-l-border/40",
     success: "border-l-success",
     warning: "border-l-warning",
     danger: "border-l-destructive",
@@ -130,7 +139,10 @@ export function KanbanCard({
       onDragStart={handleDragStart}
       onDragEnd={onDragEnd}
       className={cn(
-        "w-full rounded-lg border border-border border-l-2 bg-card/80 p-3 text-left transition-all duration-200 cursor-grab active:cursor-grabbing hover:-translate-y-0.5 hover:border-border-strong hover:bg-card",
+        // Solid card matching reference stepCard pattern
+        "w-full rounded-xl border border-border border-l-[3px] bg-background p-3.5 text-left",
+        "transition-all duration-200 cursor-grab active:cursor-grabbing",
+        "hover:border-border-strong hover:-translate-y-0.5 hover:shadow-[0_6px_16px_rgba(0,0,0,0.18)]",
         border,
       )}
     >
